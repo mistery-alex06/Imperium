@@ -109,11 +109,18 @@ class Cards {
 
     initEventDeck() {
         // NUOVO: mazzo eventi ora collegato alle caselle angolo (AUDIT/BLACK MARKET/RAID).
+        // Espanso da 4 a 10 carte per ridurre la ripetitività (5 eventi favorevoli, 5 avversi).
         this.eventDeck = [
             { id: 'e1', title: 'Boom', desc: 'Il mercato esplode: +150 crediti.', apply: (p) => { p.credits += 150; } },
             { id: 'e2', title: 'Cyber Attack', desc: 'Un attacco informatico ti costa 100 crediti.', apply: (p) => { p.credits = Math.max(0, p.credits - 100); } },
             { id: 'e3', title: 'Audit', desc: "Un'ispezione fiscale: -15 reputazione, -50 crediti.", apply: (p) => { p.reputation = Math.max(0, p.reputation - 15); p.credits = Math.max(0, p.credits - 50); } },
-            { id: 'e4', title: 'PR Stunt', desc: 'Ottima copertura mediatica: +10 reputazione, +5 potere.', apply: (p) => { p.reputation += 10; p.power += 5; } }
+            { id: 'e4', title: 'PR Stunt', desc: 'Ottima copertura mediatica: +10 reputazione, +5 potere.', apply: (p) => { p.reputation += 10; p.power += 5; } },
+            { id: 'e5', title: 'Fusione Ostile', desc: 'Un fondo rivale investe su di te: +250 crediti, -10 reputazione.', apply: (p) => { p.credits += 250; p.reputation = Math.max(0, p.reputation - 10); } },
+            { id: 'e6', title: 'Sciopero dei Dipendenti', desc: 'La produttività crolla: -80 crediti, -5 potere.', apply: (p) => { p.credits = Math.max(0, p.credits - 80); p.power = Math.max(0, p.power - 5); } },
+            { id: 'e7', title: 'Class Action', desc: "Una causa collettiva ti costa cara: -120 crediti, -10 reputazione.", apply: (p) => { p.credits = Math.max(0, p.credits - 120); p.reputation = Math.max(0, p.reputation - 10); } },
+            { id: 'e8', title: 'Rimborso Fiscale', desc: 'Un cavillo gioca a tuo favore: +100 crediti.', apply: (p) => { p.credits += 100; } },
+            { id: 'e9', title: 'Fuga di Dati', desc: 'Una violazione informatica scuote la fiducia: -20 reputazione.', apply: (p) => { p.reputation = Math.max(0, p.reputation - 20); } },
+            { id: 'e10', title: 'Endorsement VIP', desc: 'Una celebrità elogia la tua azienda: +15 reputazione, +10 potere.', apply: (p) => { p.reputation += 15; p.power += 10; } }
         ];
     }
 

@@ -44,7 +44,7 @@ Puoi sempre ritirarti da una partita ormai persa: la tua pedina resta sul tabell
 
 ## 🎲 Eventi da sala consiglio
 
-Atterrare su una casella d'angolo pesca un evento a sorpresa: **Boom** di mercato, **Cyber Attack**, **Audit** fiscale o un fortunato **PR Stunt**. Il destino della tua trimestrale non è mai del tutto nelle tue mani.
+Atterrare su una casella d'angolo pesca uno tra **10 eventi a sorpresa** — dal Boom di mercato alla Fusione Ostile, dallo Sciopero dei Dipendenti all'Endorsement VIP. Il destino della tua trimestrale non è mai del tutto nelle tue mani.
 
 ---
 
@@ -65,7 +65,6 @@ assets/                 vuota, nessuna risorsa esterna necessaria
 Il gioco è pienamente funzionante: economia, bancarotta, ruoli segreti, eventi, modalità contro IA, log delle azioni, identità visiva "dossier esecutivo" e un **Sabotaggio** segreto ed esclusivo del Saboteur — un'azione negabile (il registro non rivela mai chi l'ha usata) che lo rende una vera minaccia attiva, non solo un'etichetta nascosta.
 
 **Prossimi passi** (vedi la cronologia dei commit per i dettagli via via implementati):
-- Varietà maggiore nel mazzo eventi e nel mazzo carte.
 - Differenziazione strategica tra le caselle del tabellone.
 - IA più sofisticata.
 - Salvataggio partita, audio, supporto touch.
