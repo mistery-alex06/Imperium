@@ -1,0 +1,204 @@
+:root {
+    /* --- Palette "Dossier Esecutivo" --- */
+    --color-bg: #0B0D12;
+    /* Obsidian */
+    --color-panel-bg: rgba(22, 26, 36, 0.82);
+    /* Graphite, vetro */
+    --color-felt: #1B1E27;
+    /* Feltro del tavolo */
+    --color-text: #EDE7D9;
+    /* Parchment */
+    --color-text-muted: #8B8FA3;
+    /* Slate */
+
+    --color-accent-primary: #C9A24B;
+    /* Imperial Gold — potere, turno attivo */
+    --color-accent-primary-soft: rgba(201, 162, 75, 0.18);
+    --color-accent-secondary: #B8293F;
+    /* Crimson — allarme, caselle angolo, sabotaggio */
+    --color-accent-secondary-soft: rgba(184, 41, 63, 0.18);
+    --color-accent-tertiary: #2E9E8F;
+    /* Verdigris Teal — transazioni neutre */
+    --color-accent-tertiary-soft: rgba(46, 158, 143, 0.18);
+
+    --color-border: rgba(201, 162, 75, 0.22);
+    --color-success: #4FBF8B;
+    --color-danger: #D64B5E;
+    --color-warning: #D9A441;
+
+    /* Fonts */
+    --font-header: 'Big Shoulders Display', sans-serif;
+    --font-body: 'Inter', sans-serif;
+    --font-mono: 'IBM Plex Mono', monospace;
+
+    /* Spacing */
+    --spacing-sm: 8px;
+    --spacing-md: 16px;
+    --spacing-lg: 24px;
+
+    /* Effects */
+    --glass-blur: 12px;
+    --glow-primary: 0 0 14px rgba(201, 162, 75, 0.35);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+}
+
+body {
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-body);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#game-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    /* Sala consiglio in penombra: vignettatura scura con un lucore dorato al centro */
+    background:
+        radial-gradient(ellipse at center, rgba(201, 162, 75, 0.07) 0%, rgba(11, 13, 18, 0) 55%),
+        radial-gradient(ellipse at 50% 100%, rgba(46, 158, 143, 0.05) 0%, rgba(11, 13, 18, 0) 60%),
+        linear-gradient(160deg, #0B0D12 0%, #12141C 45%, #0B0D12 100%);
+}
+
+/* Sottile texture "carta filigranata" sull'intera scena */
+#game-container::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.035;
+    background-image: repeating-linear-gradient(45deg, #fff 0, #fff 1px, transparent 1px, transparent 3px);
+    z-index: 1;
+}
+
+/* Board centrato sotto il titolo. Margini sinistro/destro simmetrici per centraggio reale,
+   sufficientemente ampi da non sovrapporsi alla colonna carte+log (sinistra) e a HUD/pulsanti (destra) */
+#board-container {
+    position: absolute;
+    top: 110px;
+    left: 300px;
+    right: 300px;
+    bottom: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* UI Layer sits on top of Board */
+#ui-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: var(--spacing-md);
+    z-index: 2;
+}
+
+#game-header {
+    text-align: center;
+    pointer-events: auto;
+}
+
+#game-header h1 {
+    font-family: var(--font-header);
+    font-weight: 800;
+    font-size: 2.6rem;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    color: var(--color-accent-primary);
+    text-shadow: 0 0 24px rgba(201, 162, 75, 0.35);
+    line-height: 1;
+}
+
+#turn-indicator {
+    margin-top: 4px;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+
+#turn-indicator span {
+    color: var(--color-accent-primary);
+    font-weight: 600;
+}
+
+button {
+    font-family: var(--font-header);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.action-btn {
+    background: rgba(201, 162, 75, 0.08);
+    border: 1px solid var(--color-accent-primary);
+    color: var(--color-accent-primary);
+    padding: 10px 22px;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    box-shadow: 0 0 0 rgba(201, 162, 75, 0);
+    pointer-events: auto;
+    clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+}
+
+.action-btn:hover {
+    background: var(--color-accent-primary);
+    color: #0B0D12;
+    box-shadow: var(--glow-primary);
+    transform: translateY(-1px);
+}
+
+.action-btn:active {
+    transform: translateY(0);
+}
+
+.action-btn:disabled {
+    border-color: rgba(139, 143, 163, 0.35);
+    color: rgba(139, 143, 163, 0.5);
+    box-shadow: none;
+    cursor: not-allowed;
+    background: transparent;
+}
+
+.action-btn.danger {
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+}
+
+.action-btn.danger:hover:not(:disabled) {
+    background: var(--color-danger);
+    color: #fff;
+    box-shadow: 0 0 14px rgba(214, 75, 94, 0.4);
+}
+
+/* Pulsante di ritiro: angolo in alto a sinistra, opposto ai pulsanti azione */
+#surrender-container {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    pointer-events: auto;
+    z-index: 5;
+}
+
+.hidden {
+    display: none !important;
+}
