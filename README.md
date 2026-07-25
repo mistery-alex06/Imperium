@@ -62,10 +62,9 @@ assets/                 vuota, nessuna risorsa esterna necessaria
 
 ## 🛠️ Stato attuale
 
-Il gioco è pienamente funzionante: economia, bancarotta, ruoli segreti, eventi, modalità contro IA, log delle azioni e identità visiva "dossier esecutivo" con tabellone stile sala consiglio, keycard olografiche e badge di sicurezza per l'HUD.
+Il gioco è pienamente funzionante: economia, bancarotta, ruoli segreti, eventi, modalità contro IA, log delle azioni, identità visiva "dossier esecutivo" e un **Sabotaggio** segreto ed esclusivo del Saboteur — un'azione negabile (il registro non rivela mai chi l'ha usata) che lo rende una vera minaccia attiva, non solo un'etichetta nascosta.
 
 **Prossimi passi** (vedi la cronologia dei commit per i dettagli via via implementati):
-- Un'abilità unica e segreta per il Saboteur, oltre alle sue attuali fonti passive di punti.
 - Varietà maggiore nel mazzo eventi e nel mazzo carte.
 - Differenziazione strategica tra le caselle del tabellone.
 - IA più sofisticata.

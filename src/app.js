@@ -65,6 +65,8 @@ class Player {
         this.sabotagePoints = 0;
         // NUOVO: ritiro volontario dalla partita (distinto dalla bancarotta).
         this.isRetired = false;
+        // NUOVO: turni di attesa prima di poter usare di nuovo il Sabotaggio (solo Saboteur).
+        this.sabotageCooldown = 0;
     }
 
     /**
@@ -288,6 +290,39 @@ class UI {
         }
 
         this.ensureAccuseButton();
+        this.ensureSabotageButton();
+    }
+
+    /**
+     * Pulsante "SABOTAGGIO": esiste nel DOM SOLO durante il turno del Saboteur, e viene
+     * rimosso del tutto (non solo disabilitato) negli altri turni — così in hotseat locale
+     * nessun altro giocatore può vederlo comparire e dedurre chi è il traditore.
+     */
+    ensureSabotageButton() {
+        const current = this.game.currentPlayer;
+        const isCurrentHumanTurn = !(this.game.mode === 'computer' && current.id !== this.game.humanPlayerId);
+        const shouldExist = current.isSaboteur && isCurrentHumanTurn;
+        let btn = document.getElementById('btn-sabotage');
+
+        if (!shouldExist) {
+            if (btn) btn.remove();
+            return;
+        }
+
+        if (!btn) {
+            const actions = document.getElementById('actions-container');
+            if (!actions) return;
+            btn = document.createElement('button');
+            btn.id = 'btn-sabotage';
+            btn.className = 'action-btn sabotage';
+            btn.onclick = () => this.game.handleSabotageClick();
+            const endBtn = document.getElementById('btn-end-turn');
+            if (endBtn) actions.insertBefore(btn, endBtn); else actions.appendChild(btn);
+        }
+
+        const ready = current.sabotageCooldown <= 0;
+        btn.disabled = !ready;
+        btn.innerText = ready ? 'SABOTAGGIO' : `SABOTAGGIO (${current.sabotageCooldown})`;
     }
 
     ensureAccuseButton() {
@@ -532,6 +567,8 @@ class Game {
 
     startTurn() {
         this.isProcessingTurn = false;
+        // NUOVO: il cooldown del Sabotaggio scende solo nei turni di chi lo possiede.
+        if (this.currentPlayer.sabotageCooldown > 0) this.currentPlayer.sabotageCooldown--;
         this.ui.updateHUD(this.currentPlayer, this.players);
         this.ui.setTurnIndicator(this.currentPlayer, this.round);
         const isHuman = !this.isAITurn();
@@ -672,13 +709,46 @@ class Game {
         this.ui.toggleButton('btn-end-turn', true);
 
         if (this.isAITurn()) {
-            // NUOVO: dopo l'azione sulla casella, l'IA valuta se giocare una carta
-            // e/o accusare qualcuno, poi passa il turno da sola.
+            // NUOVO: dopo l'azione sulla casella, l'IA valuta se sabotare in segreto (se è
+            // il Saboteur), giocare una carta e/o accusare qualcuno, poi passa il turno da sola.
             setTimeout(() => {
+                this.aiMaybeSabotage();
                 this.aiMaybePlayCard();
                 this.aiMaybeAccuse();
                 setTimeout(() => this.endTurn(), 500);
             }, 500);
+        }
+    }
+
+    /**
+     * Azione unica e segreta del Saboteur: colpisce un avversario a caso, ma il registro
+     * attività riporta l'accaduto come un evento di mercato anonimo (nessuna attribuzione
+     * al giocatore), così l'azione resta negabile e non tradisce il ruolo.
+     */
+    handleSabotageClick() {
+        if (!this.currentPlayer.isSaboteur || this.currentPlayer.sabotageCooldown > 0 || this.gameOver) return;
+        const targets = this.players.filter(p => p.id !== this.currentPlayer.id && !p.isBankrupt && !p.isRetired);
+        if (targets.length === 0) return;
+
+        const target = targets[Math.floor(Math.random() * targets.length)];
+        const amount = 50 + Math.floor(Math.random() * 100);
+        target.credits = Math.max(0, target.credits - amount);
+
+        this.currentPlayer.sabotagePoints += 20;
+        this.currentPlayer.sabotageCooldown = 3;
+
+        // Log volutamente anonimo (nessun player passato): non deve rivelare l'autore.
+        this.ui.log(`Contraccolpo di mercato imprevisto: ${target.name} perde ${amount} crediti.`);
+
+        this.ui.updateHUD(this.currentPlayer, this.players);
+        this.checkWinConditions();
+    }
+
+    aiMaybeSabotage() {
+        if (!this.currentPlayer.isSaboteur || this.currentPlayer.sabotageCooldown > 0) return;
+        // L'IA-Saboteur usa il Sabotaggio quasi sempre appena disponibile: è la sua unica vera arma.
+        if (Math.random() < 0.7) {
+            this.handleSabotageClick();
         }
     }
 

@@ -190,6 +190,19 @@ button {
     box-shadow: 0 0 14px rgba(214, 75, 94, 0.4);
 }
 
+/* Pulsante Sabotaggio: visibile solo al Saboteur, stile cupo e minaccioso */
+.action-btn.sabotage {
+    border-color: #6b1420;
+    color: #E0555F;
+    background: rgba(107, 20, 32, 0.12);
+}
+
+.action-btn.sabotage:hover:not(:disabled) {
+    background: #6b1420;
+    color: #fff;
+    box-shadow: 0 0 16px rgba(107, 20, 32, 0.6);
+}
+
 /* Pulsante di ritiro: angolo in alto a sinistra, opposto ai pulsanti azione */
 #surrender-container {
     position: fixed;
