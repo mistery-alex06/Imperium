@@ -278,6 +278,8 @@ class UI {
         this.game = game;
         this.boardElement = document.getElementById('game-board');
         this.hudContainer = document.getElementById('players-hud-container');
+        // NUOVO: filtro del registro attività ('all' oppure l'id di un giocatore specifico).
+        this.logFilter = 'all';
     }
 
     renderBoard(tiles) {
@@ -540,15 +542,56 @@ class UI {
         if (!logEl) return;
         const entry = document.createElement('div');
         entry.className = `log-entry ${player ? '' : 'log-system'}`;
+        // NUOVO: id del giocatore memorizzato sull'elemento, per poterlo filtrare in seguito.
+        entry.dataset.playerId = player ? String(player.id) : 'system';
         if (player) {
             entry.style.borderLeftColor = player.color;
             entry.innerHTML = `<span class="log-player" style="color:${player.color}">${player.name}</span> — ${msg}`;
         } else {
             entry.textContent = msg;
         }
+        // Applica subito il filtro attivo, così una nuova voce non visibile non "salta fuori".
+        if (this.logFilter !== 'all' && this.logFilter !== entry.dataset.playerId) {
+            entry.style.display = 'none';
+        }
         logEl.appendChild(entry);
         // Limite entries per non appesantire il DOM in partite lunghe
         while (logEl.children.length > 60) logEl.removeChild(logEl.firstChild);
+    }
+
+    /** NUOVO: crea i pulsanti filtro (Tutti + un pallino per CEO) sopra il registro attività. */
+    renderLogFilter(players) {
+        const container = document.getElementById('log-filter');
+        if (!container) return;
+        container.innerHTML = '';
+
+        const allBtn = document.createElement('button');
+        allBtn.className = 'log-filter-all active';
+        allBtn.textContent = 'Tutti';
+        allBtn.title = 'Mostra le azioni di tutti i giocatori';
+        allBtn.onclick = () => this.setLogFilter('all', allBtn);
+        container.appendChild(allBtn);
+
+        players.forEach(p => {
+            const dot = document.createElement('button');
+            dot.className = 'log-filter-dot';
+            dot.style.backgroundColor = p.color;
+            dot.title = `Mostra solo le azioni di ${p.name}`;
+            dot.onclick = () => this.setLogFilter(String(p.id), dot);
+            container.appendChild(dot);
+        });
+    }
+
+    /** NUOVO: applica il filtro scelto alle voci già presenti nel log e aggiorna lo stato visivo. */
+    setLogFilter(filterValue, clickedBtn) {
+        this.logFilter = filterValue;
+        document.querySelectorAll('#log-filter button').forEach(b => b.classList.remove('active'));
+        if (clickedBtn) clickedBtn.classList.add('active');
+
+        document.querySelectorAll('#action-log .log-entry').forEach(entry => {
+            const visible = filterValue === 'all' || filterValue === entry.dataset.playerId;
+            entry.style.display = visible ? '' : 'none';
+        });
     }
 
     showModal(title, body, actions = [], isHtml = false) {
@@ -703,6 +746,7 @@ class Game {
 
         this.players.forEach(p => this.ui.updatePlayerPosition(p));
         this.ui.refreshTileGlow(0); // tutti i CEO partono da START
+        this.ui.renderLogFilter(this.players);
         this.ui.updateHUD(this.currentPlayer, this.players);
 
         this.ui.log("Partita iniziata. Un Saboteur si nasconde tra i 4 CEO.");
@@ -749,6 +793,7 @@ class Game {
             if (p.isRetired) this.ui.setTokenGray(p);
         });
         [...new Set(this.players.map(p => p.position))].forEach(pos => this.ui.refreshTileGlow(pos));
+        this.ui.renderLogFilter(this.players);
         this.ui.updateHUD(this.currentPlayer, this.players);
         this.ui.log("Partita ripristinata dall'ultimo salvataggio.");
 
