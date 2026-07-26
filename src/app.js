@@ -4,6 +4,12 @@
 const START_BONUS = 200;
 const MAX_HAND_SIZE = 4; // NUOVO: limite carte in mano, per evitare accumuli infiniti con la ricarica
 
+/** NUOVO: ritardo casuale (ms) per simulare il tempo di "riflessione" dell'IA tra un'azione
+ * e l'altra, così i suoi turni non scattano via istantanei mostrando ogni singola decisione. */
+function aiThinkDelay(minMs, maxMs) {
+    return minMs + Math.random() * (maxMs - minMs);
+}
+
 // NUOVO: 4 distretti tematici (uno per quadrante del tabellone). Possedere TUTTE le
 // proprietà dello stesso distretto attiva un bonus di rendita, per dare un motivo
 // strategico a preferire una zona del tabellone invece di comprare a caso.
@@ -622,8 +628,9 @@ class Game {
         this.ui.log(`Inizio turno.`, this.currentPlayer);
 
         if (!isHuman) {
-            // NUOVO: turno dell'IA, gioca da sola dopo una breve pausa "di riflessione".
-            setTimeout(() => this.handleRollDice(), 700);
+            // NUOVO: turno dell'IA, gioca da sola dopo una pausa "di riflessione" più realistica
+            // (2.2-4 secondi, invece di quasi istantanea) prima di tirare il dado.
+            setTimeout(() => this.handleRollDice(), aiThinkDelay(2200, 4000));
         }
     }
 
@@ -784,12 +791,14 @@ class Game {
         if (this.isAITurn()) {
             // NUOVO: dopo l'azione sulla casella, l'IA valuta se sabotare in segreto (se è
             // il Saboteur), giocare una carta e/o accusare qualcuno, poi passa il turno da sola.
+            // Pause più lunghe e casuali (invece di 500ms fissi) per dare il tempo di leggere
+            // il registro attività e non far sembrare l'IA istantanea.
             setTimeout(() => {
                 this.aiMaybeSabotage();
                 this.aiMaybePlayCard();
                 this.aiMaybeAccuse();
-                setTimeout(() => this.endTurn(), 500);
-            }, 500);
+                setTimeout(() => this.endTurn(), aiThinkDelay(1800, 3200));
+            }, aiThinkDelay(1500, 2800));
         }
     }
 
