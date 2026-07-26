@@ -35,12 +35,17 @@ Puoi sempre ritirarti da una partita ormai persa: la tua pedina resta sul tabell
 
 ## 🃏 Le carte
 
+Mazzo condiviso di **7 carte**: si parte con 2 in mano e se ne pesca una nuova ogni volta che si passa da START (fino a un massimo di 4 in mano contemporaneamente).
+
 | Carta | Tipo | Costo | Effetto |
 |---|---|---|---|
 | **Espionage** | Attacco | Gratis | Ruba una carta a caso da un avversario |
 | **Freeze** | Attacco | 100 | Congela un rivale: niente acquisti per un turno |
+| **Poaching** | Attacco | 60 | Sottrae 80 crediti direttamente a un avversario |
 | **Legal Team** | Difesa | 50 | Attiva uno scudo che neutralizza il prossimo attacco subito |
 | **Insider** | Utility | 200 | Compra un'informazione: chi è davvero il tuo bersaglio? |
+| **PR Campaign** | Utility | 80 | Campagna di immagine: +15 reputazione |
+| **Cash Injection** | Utility | 120 | Iniezione di liquidità immediata: +150 crediti |
 
 ## 🎲 Eventi da sala consiglio
 

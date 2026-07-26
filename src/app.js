@@ -2,6 +2,7 @@
    Unica sorgente di verità del gioco (nessun altro file JS da mantenere in parallelo). */
 
 const START_BONUS = 200;
+const MAX_HAND_SIZE = 4; // NUOVO: limite carte in mano, per evitare accumuli infiniti con la ricarica
 
 /* --- Board --- */
 class Board {
@@ -94,11 +95,16 @@ class Cards {
         // FIX: ogni carta ha ora un "cost" realmente scalato al giocatore che la gioca
         // (prima il campo esisteva solo nei dati, mai applicato: le carte erano gratis).
         // FIX: reintrodotta "Legal Team" (s3), presente solo nella versione modulare e mai gestita.
+        // NUOVO: mazzo espanso da 4 a 7 carte, condiviso (si pesca più volte durante la
+        // partita, non più una carta fissa a testa) per più varietà e profondità strategica.
         this.specialDeck = [
             { id: 's1', type: 'attack', title: 'Espionage', cost: 0, desc: "Ruba una carta a caso da un avversario." },
             { id: 's2', type: 'attack', title: 'Freeze', cost: 100, desc: "L'avversario non può comprare proprietà per 1 turno." },
             { id: 's3', type: 'defense', title: 'Legal Team', cost: 50, desc: "Blocca il prossimo attacco subito." },
-            { id: 's4', type: 'utility', title: 'Insider', cost: 200, desc: "Rivela il ruolo di un avversario." }
+            { id: 's4', type: 'utility', title: 'Insider', cost: 200, desc: "Rivela il ruolo di un avversario." },
+            { id: 's5', type: 'attack', title: 'Poaching', cost: 60, desc: "Sottrae 80 crediti direttamente a un avversario." },
+            { id: 's6', type: 'utility', title: 'PR Campaign', cost: 80, desc: "Campagna di immagine: +15 reputazione." },
+            { id: 's7', type: 'utility', title: 'Cash Injection', cost: 120, desc: "Iniezione di liquidità immediata: +150 crediti." }
         ];
     }
 
@@ -509,6 +515,8 @@ class Game {
         const colors = ['#C1443B', '#4C8FBD', '#8B6FC9', '#D6B24C']; // Rubino, Zaffiro, Ametista, Topazio
         for (let i = 0; i < 4; i++) {
             this.players.push(new Player(i, `CEO ${i + 1}`, colors[i]));
+            // NUOVO: 2 carte iniziali invece di 1, dal mazzo condiviso.
+            this.players[i].hand.push(this.cards.drawSpecial());
             this.players[i].hand.push(this.cards.drawSpecial());
         }
 
@@ -608,6 +616,12 @@ class Game {
             if (passedStart) {
                 this.currentPlayer.credits += START_BONUS;
                 this.ui.log(`Passa da START: +${START_BONUS} crediti.`, this.currentPlayer);
+                // NUOVO: il mazzo carte è condiviso e si ricarica — tornare a START fa pescare
+                // una nuova carta (fino al limite massimo in mano).
+                if (this.currentPlayer.hand.length < MAX_HAND_SIZE) {
+                    this.currentPlayer.hand.push(this.cards.drawSpecial());
+                    this.ui.log(`Riceve una nuova carta da HQ.`, this.currentPlayer);
+                }
             }
             // FIX: il pedone ora "cammina" casella per casella invece di teletrasportarsi
             // direttamente sulla casella finale.
@@ -761,11 +775,16 @@ class Game {
 
     aiMaybePlayCard() {
         if (this.currentPlayer.isBankrupt || this.currentPlayer.hand.length === 0) return;
-        const card = this.currentPlayer.hand[0];
-        const canAfford = this.currentPlayer.credits >= card.cost;
-        // Euristica semplice: gioca la carta circa metà delle volte, se può permettersela.
-        if (canAfford && Math.random() < 0.5) {
-            this.executeCardEffect(card, 0);
+        // NUOVO: con più carte in mano, l'IA valuta quelle che può permettersi invece di
+        // guardare solo la prima.
+        const affordable = this.currentPlayer.hand
+            .map((card, index) => ({ card, index }))
+            .filter(({ card }) => this.currentPlayer.credits >= card.cost);
+        if (affordable.length === 0) return;
+        // Euristica semplice: gioca una carta a caso tra quelle permesse, circa metà delle volte.
+        if (Math.random() < 0.5) {
+            const choice = affordable[Math.floor(Math.random() * affordable.length)];
+            this.executeCardEffect(choice.card, choice.index);
         }
     }
 
@@ -829,17 +848,33 @@ class Game {
                 // FIX: effetto reale "congelamento acquisti" invece del vecchio -100 crediti fisso.
                 target.frozenTurns += 1;
                 this.ui.log(`Congela ${target.name} per il prossimo turno (Freeze).`, this.currentPlayer);
+            } else if (card.id === 's5') {
+                // NUOVO: Poaching — sottrae crediti direttamente, senza coinvolgere le carte.
+                const stolenAmount = Math.min(80, target.credits);
+                target.credits -= stolenAmount;
+                this.currentPlayer.credits += stolenAmount;
+                this.ui.log(`Sottrae ${stolenAmount} crediti a ${target.name} (Poaching).`, this.currentPlayer);
             }
             // NUOVO: se è stato il Saboteur ad attaccare con successo, guadagna punti-sabotaggio.
             if (this.currentPlayer.isSaboteur) {
                 this.currentPlayer.sabotagePoints += 10;
             }
-        } else if (card.id === 's4') {
-            const target = this.players.find(p => p.id !== this.currentPlayer.id && !p.isRetired);
-            if (target) {
-                const role = target.isSaboteur ? "SABOTEUR" : "CEO";
-                this.ui.log(`Consulta un informatore su ${target.name} (Insider).`, this.currentPlayer);
-                this.showModalUnlessAI("Insider Info", `${target.name} is: ${role}`, [{ text: "OK", action: () => { } }]);
+        } else if (card.type === 'utility') {
+            if (card.id === 's4') {
+                const target = this.players.find(p => p.id !== this.currentPlayer.id && !p.isRetired);
+                if (target) {
+                    const role = target.isSaboteur ? "SABOTEUR" : "CEO";
+                    this.ui.log(`Consulta un informatore su ${target.name} (Insider).`, this.currentPlayer);
+                    this.showModalUnlessAI("Insider Info", `${target.name} is: ${role}`, [{ text: "OK", action: () => { } }]);
+                }
+            } else if (card.id === 's6') {
+                // NUOVO: PR Campaign — investimento in reputazione.
+                this.currentPlayer.reputation += 15;
+                this.ui.log(`Lancia una campagna di immagine: +15 reputazione (PR Campaign).`, this.currentPlayer);
+            } else if (card.id === 's7') {
+                // NUOVO: Cash Injection — liquidità immediata.
+                this.currentPlayer.credits += 150;
+                this.ui.log(`Ottiene un'iniezione di liquidità: +150 crediti (Cash Injection).`, this.currentPlayer);
             }
         }
         this.checkWinConditions();
