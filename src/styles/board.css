@@ -130,6 +130,24 @@
     background: var(--color-accent-primary);
 }
 
+/* NUOVO: striscia inferiore colorata per distretto tematico (bonus di monopolio se
+   posseduto per intero) — distinta dalla striscia superiore che indica il tipo di casella. */
+.tile.district-financial {
+    border-bottom: 3px solid #C9A24B;
+}
+
+.tile.district-tech {
+    border-bottom: 3px solid #4C8FBD;
+}
+
+.tile.district-industrial {
+    border-bottom: 3px solid #B5651D;
+}
+
+.tile.district-media {
+    border-bottom: 3px solid #8B6FC9;
+}
+
 .tile.corner {
     background: linear-gradient(155deg, rgba(184, 41, 63, 0.16), var(--color-panel-bg) 60%);
     border-color: rgba(184, 41, 63, 0.4);

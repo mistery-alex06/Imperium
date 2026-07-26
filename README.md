@@ -27,9 +27,24 @@ Apri `index.html` e scegli la modalità:
 
 **Chi vince?**
 - Un **CEO** vince raggiungendo **50 Potere**, oppure restando l'ultimo non fallito sul mercato.
-- Il **Saboteur** vince accumulando **50 punti-sabotaggio** in segreto: ogni accusa sbagliata contro un innocente, ogni attacco riuscito, ogni fallimento altrui lo avvicina alla vittoria — senza che nessuno se ne accorga fino alla fine.
+- Il **Saboteur** vince accumulando **50 punti-sabotaggio** in segreto: ogni accusa sbagliata contro un innocente, ogni attacco riuscito, ogni fallimento altrui — e un'azione di **Sabotaggio** unica e negabile, visibile solo a lui — lo avvicinano alla vittoria senza che nessuno se ne accorga fino alla fine.
 
 Puoi sempre ritirarti da una partita ormai persa: la tua pedina resta sul tabellone, spenta e grigia, mentre gli altri continuano a giocarsi il trono.
+
+---
+
+## 🏢 Distretti e Hub di Trasporto
+
+Il tabellone è diviso in **4 distretti tematici**, riconoscibili dalla striscia colorata sul bordo inferiore di ogni casella:
+
+| Distretto | Zona | Colore |
+|---|---|---|
+| Distretto Finanziario | Trading Desk 1-9 | Oro |
+| Distretto Tech | Server Farm 10-19 | Azzurro |
+| Zona Industriale | Linea di Montaggio 20-29 | Ruggine |
+| Quartiere Media | Studio 30-39 | Ametista |
+
+Possedere **tutte** le proprietà dello stesso distretto attiva un **monopolio**: +50% di rendita su ciascuna di esse. Gli **Hub di Trasporto** funzionano diversamente: la rendita non dipende dal costo della casella ma da **quanti Hub possiedi in totale** — più ne accumuli, più ognuno rende.
 
 ---
 
@@ -70,6 +85,5 @@ assets/                 vuota, nessuna risorsa esterna necessaria
 Il gioco è pienamente funzionante: economia, bancarotta, ruoli segreti, eventi, modalità contro IA, log delle azioni, identità visiva "dossier esecutivo" e un **Sabotaggio** segreto ed esclusivo del Saboteur — un'azione negabile (il registro non rivela mai chi l'ha usata) che lo rende una vera minaccia attiva, non solo un'etichetta nascosta.
 
 **Prossimi passi** (vedi la cronologia dei commit per i dettagli via via implementati):
-- Differenziazione strategica tra le caselle del tabellone.
 - IA più sofisticata.
 - Salvataggio partita, audio, supporto touch.

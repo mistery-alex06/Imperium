@@ -4,6 +4,19 @@
 const START_BONUS = 200;
 const MAX_HAND_SIZE = 4; // NUOVO: limite carte in mano, per evitare accumuli infiniti con la ricarica
 
+// NUOVO: 4 distretti tematici (uno per quadrante del tabellone). Possedere TUTTE le
+// proprietà dello stesso distretto attiva un bonus di rendita, per dare un motivo
+// strategico a preferire una zona del tabellone invece di comprare a caso.
+const DISTRICTS = [
+    { id: 'financial', name: 'Distretto Finanziario', tilePrefix: 'Trading Desk', color: '#C9A24B', range: [0, 9] },
+    { id: 'tech', name: 'Distretto Tech', tilePrefix: 'Server Farm', color: '#4C8FBD', range: [10, 19] },
+    { id: 'industrial', name: 'Zona Industriale', tilePrefix: 'Linea di Montaggio', color: '#B5651D', range: [20, 29] },
+    { id: 'media', name: 'Quartiere Media', tilePrefix: 'Studio', color: '#8B6FC9', range: [30, 39] }
+];
+function getDistrict(index) {
+    return DISTRICTS.find(d => index >= d.range[0] && index <= d.range[1]);
+}
+
 /* --- Board --- */
 class Board {
     constructor() {
@@ -16,6 +29,7 @@ class Board {
             let type = 'property';
             let name = `Sector ${i}`;
             let cost = 100 + (i * 10);
+            let district = null;
 
             if (i % 5 === 0) {
                 type = 'railroad';
@@ -30,12 +44,21 @@ class Board {
             // che l'UI mostrasse un prezzo fittizio su START/AUDIT/BLACK MARKET/RAID).
             if (type === 'corner') cost = null;
 
+            // NUOVO: le caselle proprietà appartengono a un distretto tematico, con nome coerente
+            // (es. "Trading Desk 3" nel Distretto Finanziario) invece del generico "Sector N".
+            if (type === 'property') {
+                const d = getDistrict(i);
+                district = d.id;
+                name = `${d.tilePrefix} ${i}`;
+            }
+
             this.tiles.push({
                 index: i,
                 type: type,
                 name: name,
                 cost: cost,
-                owner: null
+                owner: null,
+                district: district
             });
         }
     }
@@ -149,7 +172,8 @@ class UI {
 
         tiles.forEach(tile => {
             const el = document.createElement('div');
-            el.className = `tile ${tile.type}`;
+            // NUOVO: classe distretto (solo caselle proprietà) per la striscia colorata inferiore.
+            el.className = `tile ${tile.type}${tile.district ? ` district-${tile.district}` : ''}`;
             el.dataset.index = tile.index;
             // FIX: il costo viene mostrato solo se esiste (le caselle angolo non lo hanno più).
             const costLine = tile.cost != null ? `${tile.cost}$` : '';
@@ -692,14 +716,34 @@ class Game {
     buyProperty(tile) {
         this.currentPlayer.credits -= tile.cost;
         tile.owner = this.currentPlayer.id;
-        this.ui.log(`Acquista ${tile.name} per ${tile.cost}.`, this.currentPlayer);
+        const districtNote = tile.district ? ` (${DISTRICTS.find(d => d.id === tile.district).name})` : '';
+        this.ui.log(`Acquista ${tile.name}${districtNote} per ${tile.cost}.`, this.currentPlayer);
         this.ui.updateTileVisual(tile, this.currentPlayer.color);
         this.finishActionPhase();
     }
 
     payRent(tile) {
         const owner = this.players[tile.owner];
-        const rent = Math.floor(tile.cost * 0.1);
+        let rent = Math.floor(tile.cost * 0.1);
+        let rentNote = '';
+
+        // NUOVO: rendita differenziata per tipo di casella, per dare identità strategica
+        // alle diverse zone del tabellone invece del generico "10% del costo" uniforme.
+        if (tile.type === 'railroad') {
+            // Come le stazioni di Monopoly: più Hub possiede lo stesso proprietario, più rende ognuno.
+            const ownedHubs = this.board.tiles.filter(t => t.type === 'railroad' && t.owner === owner.id).length;
+            rent = 25 * ownedHubs;
+            rentNote = ` (${ownedHubs} Hub posseduti)`;
+        } else if (tile.type === 'property' && tile.district) {
+            // Monopolio di distretto: se il proprietario possiede TUTTE le proprietà dello stesso
+            // distretto, la rendita di ciascuna sale del 50%.
+            const districtTiles = this.board.tiles.filter(t => t.type === 'property' && t.district === tile.district);
+            const ownsWholeDistrict = districtTiles.every(t => t.owner === owner.id);
+            if (ownsWholeDistrict) {
+                rent = Math.floor(rent * 1.5);
+                rentNote = ' (monopolio di distretto: +50%)';
+            }
+        }
 
         // FIX: gestione reale della bancarotta (prima i crediti potevano andare negativi
         // senza alcuna conseguenza per il giocatore).
@@ -718,7 +762,7 @@ class Game {
         } else {
             this.currentPlayer.credits -= rent;
             owner.credits += rent;
-            this.ui.log(`Paga ${rent} di affitto a ${owner.name}.`, this.currentPlayer);
+            this.ui.log(`Paga ${rent} di affitto a ${owner.name}${rentNote}.`, this.currentPlayer);
         }
 
         this.checkWinConditions();
