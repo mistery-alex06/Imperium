@@ -3,6 +3,7 @@
 
 const START_BONUS = 200;
 const MAX_HAND_SIZE = 4; // NUOVO: limite carte in mano, per evitare accumuli infiniti con la ricarica
+const SAVE_KEY = 'imperium_save_v1'; // NUOVO: chiave localStorage per il salvataggio partita
 
 /** NUOVO: ritardo casuale (ms) per simulare il tempo di "riflessione" dell'IA tra un'azione
  * e l'altra, così i suoi turni non scattano via istantanei mostrando ogni singola decisione. */
@@ -545,7 +546,28 @@ class Game {
         this.board.generateBoard();
         this.ui.renderBoard(this.board.tiles);
 
+        const rollBtn = document.getElementById('btn-roll');
+        const endBtn = document.getElementById('btn-end-turn');
+        const surrenderBtn = document.getElementById('btn-surrender');
+
+        if (rollBtn) rollBtn.onclick = () => this.handleRollDice();
+        if (endBtn) endBtn.onclick = () => this.endTurn();
+        if (surrenderBtn) surrenderBtn.onclick = () => this.handleSurrenderClick();
+
+        // NUOVO: se esiste una partita salvata valida, chiede se riprenderla prima di
+        // avviarne una nuova da zero.
+        const saved = this.loadSavedGame();
+        if (saved) {
+            this.showResumeModal(saved);
+        } else {
+            this.startNewGame();
+        }
+    }
+
+    /** Prepara una partita nuova: giocatori, carte iniziali, Saboteur segreto, poi la scelta modalità. */
+    startNewGame() {
         const colors = ['#C1443B', '#4C8FBD', '#8B6FC9', '#D6B24C']; // Rubino, Zaffiro, Ametista, Topazio
+        this.players = [];
         for (let i = 0; i < 4; i++) {
             this.players.push(new Player(i, `CEO ${i + 1}`, colors[i]));
             // NUOVO: 2 carte iniziali invece di 1, dal mazzo condiviso.
@@ -563,16 +585,97 @@ class Game {
 
         this.ui.log("Partita iniziata. Un Saboteur si nasconde tra i 4 CEO.");
 
-        const rollBtn = document.getElementById('btn-roll');
-        const endBtn = document.getElementById('btn-end-turn');
-        const surrenderBtn = document.getElementById('btn-surrender');
-
-        if (rollBtn) rollBtn.onclick = () => this.handleRollDice();
-        if (endBtn) endBtn.onclick = () => this.endTurn();
-        if (surrenderBtn) surrenderBtn.onclick = () => this.handleSurrenderClick();
-
         // NUOVO: prima di iniziare, si sceglie la modalità di gioco.
         this.showModeSelectionModal();
+    }
+
+    /** NUOVO: chiede se riprendere la partita trovata nel salvataggio o iniziarne una nuova. */
+    showResumeModal(saved) {
+        this.ui.showModal(
+            "Partita salvata trovata",
+            "È stata trovata una partita non conclusa. Vuoi riprenderla da dove l'avevi lasciata o iniziarne una nuova (il salvataggio verrà sovrascritto)?",
+            [
+                { text: "Riprendi Partita", action: () => this.restoreGame(saved) },
+                { text: "Nuova Partita", action: () => { this.clearSave(); this.startNewGame(); } }
+            ]
+        );
+    }
+
+    /** NUOVO: ricostruisce lo stato completo (giocatori, proprietà, turno) dal salvataggio. */
+    restoreGame(saved) {
+        this.players = saved.players.map(pData => {
+            const p = new Player(pData.id, pData.name, pData.color);
+            Object.assign(p, pData);
+            return p;
+        });
+        saved.tileOwners.forEach((owner, index) => {
+            if (this.board.tiles[index]) this.board.tiles[index].owner = owner;
+        });
+        this.currentPlayerIndex = saved.currentPlayerIndex;
+        this.round = saved.round;
+        this.mode = saved.mode;
+        this.humanPlayerId = saved.humanPlayerId;
+
+        // Ridisegna tabellone, pedine e HUD in base allo stato ripristinato.
+        this.board.tiles.forEach(tile => {
+            if (tile.owner !== null && this.players[tile.owner]) {
+                this.ui.updateTileVisual(tile, this.players[tile.owner].color);
+            }
+        });
+        this.players.forEach(p => {
+            this.ui.updatePlayerPosition(p);
+            if (p.isRetired) this.ui.setTokenGray(p);
+        });
+        [...new Set(this.players.map(p => p.position))].forEach(pos => this.ui.refreshTileGlow(pos));
+        this.ui.updateHUD(this.currentPlayer, this.players);
+        this.ui.log("Partita ripristinata dall'ultimo salvataggio.");
+
+        // isResume=true: evita di scalare due volte il cooldown Sabotaggio al ripristino.
+        this.startTurn(true);
+    }
+
+    /** NUOVO: salva lo stato corrente su localStorage (silenzioso, mai bloccante per il gioco). */
+    saveState() {
+        try {
+            const data = {
+                currentPlayerIndex: this.currentPlayerIndex,
+                round: this.round,
+                mode: this.mode,
+                humanPlayerId: this.humanPlayerId,
+                tileOwners: this.board.tiles.map(t => t.owner),
+                players: this.players.map(p => ({
+                    id: p.id, name: p.name, color: p.color, credits: p.credits, reputation: p.reputation,
+                    power: p.power, position: p.position, hand: p.hand, isSaboteur: p.isSaboteur,
+                    isBankrupt: p.isBankrupt, frozenTurns: p.frozenTurns, hasShield: p.hasShield,
+                    sabotagePoints: p.sabotagePoints, isRetired: p.isRetired, sabotageCooldown: p.sabotageCooldown,
+                    knowledge: p.knowledge
+                }))
+            };
+            localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+        } catch (e) {
+            console.warn('Impossibile salvare la partita:', e);
+        }
+    }
+
+    /** NUOVO: salva solo se la partita è ancora in corso (una finita non va ripristinata). */
+    autosave() {
+        if (!this.gameOver) this.saveState();
+    }
+
+    loadSavedGame() {
+        try {
+            const raw = localStorage.getItem(SAVE_KEY);
+            if (!raw) return null;
+            const data = JSON.parse(raw);
+            if (!data || !Array.isArray(data.players) || data.players.length !== 4 || !data.mode) return null;
+            return data;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    clearSave() {
+        try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* noop */ }
     }
 
     showModeSelectionModal() {
@@ -591,6 +694,7 @@ class Game {
         this.ui.log(mode === 'computer'
             ? "Modalità: contro il Computer. Sei il CEO 1, gli altri sono IA."
             : "Modalità: Locale. Tutti e 4 i CEO sono giocatori umani.");
+        this.autosave();
         this.startTurn();
     }
 
@@ -613,10 +717,11 @@ class Game {
 
     get currentPlayer() { return this.players[this.currentPlayerIndex]; }
 
-    startTurn() {
+    startTurn(isResume = false) {
         this.isProcessingTurn = false;
-        // NUOVO: il cooldown del Sabotaggio scende solo nei turni di chi lo possiede.
-        if (this.currentPlayer.sabotageCooldown > 0) this.currentPlayer.sabotageCooldown--;
+        // NUOVO: il cooldown del Sabotaggio scende solo nei turni di chi lo possiede, e non
+        // va scalato di nuovo quando si sta semplicemente ripristinando una partita salvata.
+        if (!isResume && this.currentPlayer.sabotageCooldown > 0) this.currentPlayer.sabotageCooldown--;
         this.ui.updateHUD(this.currentPlayer, this.players);
         this.ui.setTurnIndicator(this.currentPlayer, this.round);
         const isHuman = !this.isAITurn();
@@ -626,6 +731,7 @@ class Game {
         const accuseBtn = document.getElementById('btn-accuse');
         if (accuseBtn) accuseBtn.disabled = !isHuman;
         this.ui.log(`Inizio turno.`, this.currentPlayer);
+        this.autosave();
 
         if (!isHuman) {
             // NUOVO: turno dell'IA, gioca da sola dopo una pausa "di riflessione" più realistica
@@ -787,6 +893,7 @@ class Game {
     finishActionPhase() {
         this.ui.updateHUD(this.currentPlayer, this.players);
         this.ui.toggleButton('btn-end-turn', true);
+        this.autosave();
 
         if (this.isAITurn()) {
             // NUOVO: dopo l'azione sulla casella, l'IA valuta se sabotare in segreto (se è
@@ -823,6 +930,7 @@ class Game {
 
         this.ui.updateHUD(this.currentPlayer, this.players);
         this.checkWinConditions();
+        this.autosave();
     }
 
     aiMaybeSabotage() {
@@ -972,6 +1080,7 @@ class Game {
         }
         this.checkWinConditions();
         this.ui.updateHUD(this.currentPlayer, this.players);
+        this.autosave();
     }
 
     handleAccusationAttempt() {
@@ -1025,7 +1134,11 @@ class Game {
         this.checkWinConditions();
         // Se la partita non è già finita (es. era l'ultimo CEO attivo), si passa il turno
         // per lasciare che i restanti si giochino la vittoria.
-        if (!this.gameOver) this.endTurn();
+        if (!this.gameOver) {
+            this.endTurn();
+        } else {
+            this.autosave();
+        }
     }
 
     processAccusation(target) {
@@ -1044,12 +1157,14 @@ class Game {
         }
         this.checkWinConditions();
         this.ui.updateHUD(this.currentPlayer, this.players);
+        this.autosave();
     }
 
     checkWinConditions() {
         const winner = this.players.find(p => p.power >= 50);
         if (winner) {
             this.gameOver = true;
+            this.clearSave();
             this.ui.showModal("GAME OVER", `${winner.name} wins by Power!`, [{ text: "Reload", action: () => location.reload() }]);
             return;
         }
@@ -1059,6 +1174,7 @@ class Game {
         const saboteur = this.getSaboteur();
         if (saboteur && !saboteur.isBankrupt && !saboteur.isRetired && saboteur.sabotagePoints >= 50) {
             this.gameOver = true;
+            this.clearSave();
             this.ui.showModal("GAME OVER", `${saboteur.name} era il Saboteur e ha sabotato con successo l'azienda!`, [{ text: "Reload", action: () => location.reload() }]);
             return;
         }
@@ -1068,6 +1184,7 @@ class Game {
         const active = this.players.filter(p => !p.isBankrupt && !p.isRetired);
         if (active.length === 1) {
             this.gameOver = true;
+            this.clearSave();
             this.ui.showModal("GAME OVER", `${active[0].name} is the last CEO standing!`, [{ text: "Reload", action: () => location.reload() }]);
         }
     }

@@ -31,6 +31,8 @@ Apri `index.html` e scegli la modalità:
 
 Puoi sempre ritirarti da una partita ormai persa: la tua pedina resta sul tabellone, spenta e grigia, mentre gli altri continuano a giocarsi il trono.
 
+La partita si **salva automaticamente** ad ogni azione (in locale, nel browser): se ricarichi la pagina o la chiudi per errore, al rientro ti verrà chiesto se riprenderla da dove l'avevi lasciata o iniziarne una nuova.
+
 ---
 
 ## 🏢 Distretti e Hub di Trasporto
@@ -82,7 +84,7 @@ assets/                 vuota, nessuna risorsa esterna necessaria
 
 ## 🛠️ Stato attuale
 
-Il gioco è pienamente funzionante: economia, bancarotta, ruoli segreti, eventi, modalità contro IA con euristiche adattive (bersagli strategici, memoria delle informazioni scoperte, priorità di gioco in base allo stato), log delle azioni, identità visiva "dossier esecutivo" e un **Sabotaggio** segreto ed esclusivo del Saboteur — un'azione negabile (il registro non rivela mai chi l'ha usata) che lo rende una vera minaccia attiva, non solo un'etichetta nascosta.
+Il gioco è pienamente funzionante: economia, bancarotta, ruoli segreti, eventi, modalità contro IA con euristiche adattive (bersagli strategici, memoria delle informazioni scoperte, priorità di gioco in base allo stato), log delle azioni, identità visiva "dossier esecutivo", un **Sabotaggio** segreto ed esclusivo del Saboteur, e **salvataggio automatico** della partita in corso.
 
 **Prossimi passi** (vedi la cronologia dei commit per i dettagli via via implementati):
-- Salvataggio partita, audio, supporto touch.
+- Audio (dadi, acquisti, vittoria).
