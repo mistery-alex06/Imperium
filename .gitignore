@@ -1,0 +1,21 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+
+# Log e file temporanei
+*.log
+.tmp/
+
+# Eventuali dipendenze/build future (audio libs, bundler, ecc.)
+node_modules/
+dist/
