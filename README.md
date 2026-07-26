@@ -82,8 +82,7 @@ assets/                 vuota, nessuna risorsa esterna necessaria
 
 ## 🛠️ Stato attuale
 
-Il gioco è pienamente funzionante: economia, bancarotta, ruoli segreti, eventi, modalità contro IA, log delle azioni, identità visiva "dossier esecutivo" e un **Sabotaggio** segreto ed esclusivo del Saboteur — un'azione negabile (il registro non rivela mai chi l'ha usata) che lo rende una vera minaccia attiva, non solo un'etichetta nascosta.
+Il gioco è pienamente funzionante: economia, bancarotta, ruoli segreti, eventi, modalità contro IA con euristiche adattive (bersagli strategici, memoria delle informazioni scoperte, priorità di gioco in base allo stato), log delle azioni, identità visiva "dossier esecutivo" e un **Sabotaggio** segreto ed esclusivo del Saboteur — un'azione negabile (il registro non rivela mai chi l'ha usata) che lo rende una vera minaccia attiva, non solo un'etichetta nascosta.
 
 **Prossimi passi** (vedi la cronologia dei commit per i dettagli via via implementati):
-- IA più sofisticata.
 - Salvataggio partita, audio, supporto touch.

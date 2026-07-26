@@ -91,6 +91,9 @@ class Player {
         this.isRetired = false;
         // NUOVO: turni di attesa prima di poter usare di nuovo il Sabotaggio (solo Saboteur).
         this.sabotageCooldown = 0;
+        // NUOVO: memoria di ciò che questo giocatore ha scoperto sugli altri (es. tramite
+        // Insider), usata dall'IA per decisioni più informate invece che casuali.
+        this.knowledge = {};
     }
 
     /**
@@ -676,8 +679,13 @@ class Game {
             if (tile.owner === null) {
                 if (this.currentPlayer.credits >= tile.cost) {
                     if (this.isAITurn()) {
-                        // NUOVO: l'IA decide da sola se comprare (euristica: mantiene una riserva minima)
-                        if (this.currentPlayer.credits - tile.cost >= 150) {
+                        // NUOVO: l'IA valuta anche se l'acquisto completa un monopolio di distretto
+                        // (in quel caso è disposta a spendere di più, tenendo meno riserva).
+                        const completesDistrict = tile.district && this.board.tiles
+                            .filter(t => t.type === 'property' && t.district === tile.district && t.index !== tile.index)
+                            .every(t => t.owner === this.currentPlayer.id);
+                        const reserveNeeded = completesDistrict ? 50 : 150;
+                        if (this.currentPlayer.credits - tile.cost >= reserveNeeded) {
                             this.buyProperty(tile);
                         } else {
                             this.ui.log(`Decide di non comprare ${tile.name}.`, this.currentPlayer);
@@ -792,10 +800,9 @@ class Game {
      */
     handleSabotageClick() {
         if (!this.currentPlayer.isSaboteur || this.currentPlayer.sabotageCooldown > 0 || this.gameOver) return;
-        const targets = this.players.filter(p => p.id !== this.currentPlayer.id && !p.isBankrupt && !p.isRetired);
-        if (targets.length === 0) return;
-
-        const target = targets[Math.floor(Math.random() * targets.length)];
+        // NUOVO: colpisce il leader (chi sta vincendo) invece di un bersaglio casuale.
+        const target = this.getLeader(this.currentPlayer.id);
+        if (!target) return;
         const amount = 50 + Math.floor(Math.random() * 100);
         target.credits = Math.max(0, target.credits - amount);
 
@@ -819,27 +826,55 @@ class Game {
 
     aiMaybePlayCard() {
         if (this.currentPlayer.isBankrupt || this.currentPlayer.hand.length === 0) return;
-        // NUOVO: con più carte in mano, l'IA valuta quelle che può permettersi invece di
-        // guardare solo la prima.
-        const affordable = this.currentPlayer.hand
-            .map((card, index) => ({ card, index }))
-            .filter(({ card }) => this.currentPlayer.credits >= card.cost);
+        const p = this.currentPlayer;
+        const affordable = p.hand.map((card, index) => ({ card, index })).filter(({ card }) => p.credits >= card.cost);
         if (affordable.length === 0) return;
-        // Euristica semplice: gioca una carta a caso tra quelle permesse, circa metà delle volte.
-        if (Math.random() < 0.5) {
-            const choice = affordable[Math.floor(Math.random() * affordable.length)];
-            this.executeCardEffect(choice.card, choice.index);
+
+        // NUOVO: euristica basata su punteggio invece che su scelta puramente casuale — ogni
+        // carta riceve una priorità in base allo stato attuale del giocatore (crediti bassi,
+        // reputazione in crisi, mancanza di scudo o di informazioni, ecc.).
+        const scored = affordable.map(({ card, index }) => {
+            let score = Math.random() * 0.25; // rumore, per non essere prevedibile
+            if (card.id === 's7' && p.credits < 200) score += 0.9; // liquidità urgente
+            if (card.id === 's6' && p.reputation < 30) score += 0.7; // reputazione in crisi
+            if (card.id === 's3' && !p.hasShield) score += 0.5; // scudo preventivo
+            if (card.id === 's4' && Object.keys(p.knowledge).length < this.players.length - 1) score += 0.4; // colma lacune informative
+            if (card.id === 's1' || card.id === 's2' || card.id === 's5') score += 0.35; // pressione sul leader
+            return { card, index, score };
+        });
+
+        scored.sort((a, b) => b.score - a.score);
+        const best = scored[0];
+        // Gioca solo se la carta migliore supera una soglia minima di convenienza,
+        // altrimenti la tiene in mano per un momento più favorevole.
+        if (best.score > 0.4) {
+            this.executeCardEffect(best.card, best.index);
         }
     }
 
     aiMaybeAccuse() {
         if (this.currentPlayer.isBankrupt) return;
-        // Euristica semplice: piccola probabilità di accusare qualcuno a caso ogni turno.
-        if (Math.random() < 0.15) {
-            const others = this.players.filter(p => p.id !== this.currentPlayer.id && !p.isBankrupt && !p.isRetired);
-            if (others.length === 0) return;
+        const p = this.currentPlayer;
+        const others = this.players.filter(o => o.id !== p.id && !o.isBankrupt && !o.isRetired);
+        if (others.length === 0) return;
+
+        // NUOVO: se l'IA conosce già il Saboteur (es. scoperto con Insider), accusa quasi
+        // sempre; altrimenti la probabilità di un'accusa a caso cresce con l'avanzare dei round
+        // invece di restare fissa per tutta la partita.
+        const knownSaboteurId = Object.keys(p.knowledge).find(id => p.knowledge[id] === 'saboteur');
+        if (knownSaboteurId !== undefined) {
+            const target = others.find(o => o.id === Number(knownSaboteurId));
+            if (target && Math.random() < 0.9) {
+                this.ui.log(`Lancia un'accusa…`, p);
+                this.processAccusation(target);
+                return;
+            }
+        }
+
+        const baseline = Math.min(0.35, 0.08 + this.round * 0.02);
+        if (Math.random() < baseline) {
             const target = others[Math.floor(Math.random() * others.length)];
-            this.ui.log(`Lancia un'accusa…`, this.currentPlayer);
+            this.ui.log(`Lancia un'accusa…`, p);
             this.processAccusation(target);
         }
     }
@@ -870,7 +905,8 @@ class Game {
             this.currentPlayer.hasShield = true;
             this.ui.log(`Attiva uno scudo legale (Legal Team).`, this.currentPlayer);
         } else if (card.type === 'attack') {
-            const target = this.players.find(p => p.id !== this.currentPlayer.id && !p.isBankrupt && !p.isRetired);
+            // NUOVO: bersaglio strategico (il leader attuale) invece del primo avversario trovato.
+            const target = this.getLeader(this.currentPlayer.id);
             if (!target) {
                 this.ui.log("Nessun bersaglio disponibile.", this.currentPlayer);
             } else if (target.hasShield) {
@@ -905,9 +941,13 @@ class Game {
             }
         } else if (card.type === 'utility') {
             if (card.id === 's4') {
-                const target = this.players.find(p => p.id !== this.currentPlayer.id && !p.isRetired);
+                // NUOVO: preferisce indagare su chi non ha ancora informazioni, invece del primo trovato.
+                const target = this.players.find(p => p.id !== this.currentPlayer.id && !p.isRetired && !this.currentPlayer.knowledge[p.id])
+                    || this.players.find(p => p.id !== this.currentPlayer.id && !p.isRetired);
                 if (target) {
                     const role = target.isSaboteur ? "SABOTEUR" : "CEO";
+                    // NUOVO: memorizza l'informazione per usarla in future decisioni (es. accuse mirate).
+                    this.currentPlayer.knowledge[target.id] = target.isSaboteur ? 'saboteur' : 'ceo';
                     this.ui.log(`Consulta un informatore su ${target.name} (Insider).`, this.currentPlayer);
                     this.showModalUnlessAI("Insider Info", `${target.name} is: ${role}`, [{ text: "OK", action: () => { } }]);
                 }
@@ -938,6 +978,20 @@ class Game {
 
     getSaboteur() {
         return this.players.find(p => p.isSaboteur);
+    }
+
+    /**
+     * NUOVO: individua l'avversario "leader" (punteggio composito potere+crediti) tra i
+     * bersagli validi — usato per rendere attacchi e sabotaggi strategici invece che casuali.
+     */
+    getLeader(excludeId) {
+        const candidates = this.players.filter(p => p.id !== excludeId && !p.isBankrupt && !p.isRetired);
+        if (candidates.length === 0) return null;
+        return candidates.reduce((best, p) => {
+            const score = p.power * 10 + p.credits / 20;
+            const bestScore = best.power * 10 + best.credits / 20;
+            return score > bestScore ? p : best;
+        });
     }
 
     handleSurrenderClick() {
