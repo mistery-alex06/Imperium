@@ -551,7 +551,7 @@ class UI {
         while (logEl.children.length > 60) logEl.removeChild(logEl.firstChild);
     }
 
-    showModal(title, body, actions = []) {
+    showModal(title, body, actions = [], isHtml = false) {
         const overlay = document.getElementById('modal-overlay');
         const mTitle = document.getElementById('modal-title');
         const mBody = document.getElementById('modal-body');
@@ -559,7 +559,13 @@ class UI {
         if (!overlay) return;
 
         mTitle.innerText = title;
-        mBody.innerText = body;
+        // NUOVO: supporto opzionale a contenuto HTML (regole, riepilogo finale) mantenendo
+        // il testo semplice come default sicuro per tutti gli altri messaggi di gioco.
+        if (isHtml) {
+            mBody.innerHTML = body;
+        } else {
+            mBody.innerText = body;
+        }
         mActions.innerHTML = '';
 
         actions.forEach(act => {
@@ -655,6 +661,7 @@ class Game {
         const endBtn = document.getElementById('btn-end-turn');
         const surrenderBtn = document.getElementById('btn-surrender');
         const muteBtn = document.getElementById('btn-mute');
+        const helpBtn = document.getElementById('btn-help');
 
         if (rollBtn) rollBtn.onclick = () => this.handleRollDice();
         if (endBtn) endBtn.onclick = () => this.endTurn();
@@ -667,6 +674,7 @@ class Game {
                 muteBtn.innerText = muted ? '🔇' : '🔊';
             };
         }
+        if (helpBtn) helpBtn.onclick = () => this.showRulesModal();
 
         // NUOVO: se esiste una partita salvata valida, chiede se riprenderla prima di
         // avviarne una nuova da zero.
@@ -1223,6 +1231,36 @@ class Game {
         return this.players.find(p => p.isSaboteur);
     }
 
+    /** NUOVO: regole di gioco consultabili in qualunque momento, senza dover uscire dal browser. */
+    showRulesModal() {
+        const html = `
+            <div style="text-align:left; line-height:1.6; font-size:0.9rem;">
+                <p><strong>Obiettivo:</strong> 3 CEO leali contro 1 Saboteur segreto, nascosto tra i giocatori.</p>
+                <p>Tira il dado, acquisisci Settori e Hub di Trasporto liberi, paga affitto se sono di un rivale, gioca carte speciali e usa ACCUSE quando sospetti qualcuno.</p>
+                <p><strong>Vittoria CEO:</strong> 50 Potere, oppure essere l'ultimo non fallito/ritirato.</p>
+                <p><strong>Vittoria Saboteur:</strong> 50 punti-sabotaggio segreti (accuse sbagliate altrui, attacchi riusciti, fallimenti altrui, Sabotaggio anonimo).</p>
+                <p><strong>Distretti:</strong> possiedi TUTTE le proprietà dello stesso distretto per +50% di rendita.</p>
+                <p><strong>Hub di Trasporto:</strong> più ne possiedi, più rende ciascuno.</p>
+                <p><strong>Caselle angolo</strong> (tranne START): pescano un evento casuale.</p>
+            </div>
+        `;
+        this.ui.showModal("Come si gioca", html, [{ text: "Ho capito", action: () => { } }], true);
+    }
+
+    /** NUOVO: riepilogo di fine partita con le statistiche di tutti i giocatori, ruoli rivelati. */
+    buildGameSummary(reasonText) {
+        const sorted = [...this.players].sort((a, b) => (b.power - a.power) || (b.credits - a.credits));
+        const rows = sorted.map(p => {
+            const role = p.isSaboteur ? 'Saboteur' : 'CEO';
+            const status = p.isBankrupt ? ' (Fallito)' : p.isRetired ? ' (Ritirato)' : '';
+            return `<div style="display:flex; justify-content:space-between; gap:14px; padding:5px 0; border-bottom:1px dotted rgba(139,143,163,0.25);">
+                <span style="color:${p.color}; font-weight:600;">${p.name}${status}</span>
+                <span style="font-family:var(--font-mono); font-size:0.8rem; color:var(--color-text-muted);">${role} · ${p.power}pt · ${p.credits}$ · ${p.reputation}rep</span>
+            </div>`;
+        }).join('');
+        return `<div style="margin-bottom:12px;">${reasonText}</div><div style="text-align:left;">${rows}</div>`;
+    }
+
     /** NUOVO: suono di fine partita, diverso se l'utente ha vinto o perso (in modalità Computer). */
     playGameOverSound(winnerId) {
         if (this.mode === 'computer' && winnerId !== this.humanPlayerId) {
@@ -1302,7 +1340,7 @@ class Game {
             this.gameOver = true;
             this.clearSave();
             this.playGameOverSound(winner.id);
-            this.ui.showModal("GAME OVER", `${winner.name} wins by Power!`, [{ text: "Reload", action: () => location.reload() }]);
+            this.ui.showModal("GAME OVER", this.buildGameSummary(`${winner.name} vince raggiungendo 50 Potere!`), [{ text: "Reload", action: () => location.reload() }], true);
             return;
         }
 
@@ -1313,7 +1351,7 @@ class Game {
             this.gameOver = true;
             this.clearSave();
             this.playGameOverSound(saboteur.id);
-            this.ui.showModal("GAME OVER", `${saboteur.name} era il Saboteur e ha sabotato con successo l'azienda!`, [{ text: "Reload", action: () => location.reload() }]);
+            this.ui.showModal("GAME OVER", this.buildGameSummary(`${saboteur.name} era il Saboteur e ha sabotato con successo l'azienda!`), [{ text: "Reload", action: () => location.reload() }], true);
             return;
         }
 
@@ -1324,7 +1362,7 @@ class Game {
             this.gameOver = true;
             this.clearSave();
             this.playGameOverSound(active[0].id);
-            this.ui.showModal("GAME OVER", `${active[0].name} is the last CEO standing!`, [{ text: "Reload", action: () => location.reload() }]);
+            this.ui.showModal("GAME OVER", this.buildGameSummary(`${active[0].name} è l'ultimo CEO rimasto in piedi!`), [{ text: "Reload", action: () => location.reload() }], true);
         }
     }
 
