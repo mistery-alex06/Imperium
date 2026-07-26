@@ -212,6 +212,21 @@ button {
     z-index: 5;
 }
 
+/* Pulsante audio: alto a destra, sopra l'HUD (che parte da top:70px) */
+#sound-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    pointer-events: auto;
+    z-index: 5;
+}
+
+#btn-mute {
+    padding: 8px 12px;
+    font-size: 1rem;
+    line-height: 1;
+}
+
 .hidden {
     display: none !important;
 }

@@ -33,6 +33,8 @@ Puoi sempre ritirarti da una partita ormai persa: la tua pedina resta sul tabell
 
 La partita si **salva automaticamente** ad ogni azione (in locale, nel browser): se ricarichi la pagina o la chiudi per errore, al rientro ti verrà chiesto se riprenderla da dove l'avevi lasciata o iniziarne una nuova.
 
+L'**audio** (dadi, acquisti, affitti, carte, accuse, eventi, vittoria/sconfitta) è sintetizzato interamente via Web Audio API: nessun file da scaricare, il progetto resta a dipendenza zero. Si può disattivare in ogni momento dal pulsante 🔊 in alto a destra (preferenza salvata).
+
 ---
 
 ## 🏢 Distretti e Hub di Trasporto
@@ -84,7 +86,6 @@ assets/                 vuota, nessuna risorsa esterna necessaria
 
 ## 🛠️ Stato attuale
 
-Il gioco è pienamente funzionante: economia, bancarotta, ruoli segreti, eventi, modalità contro IA con euristiche adattive (bersagli strategici, memoria delle informazioni scoperte, priorità di gioco in base allo stato), log delle azioni, identità visiva "dossier esecutivo", un **Sabotaggio** segreto ed esclusivo del Saboteur, e **salvataggio automatico** della partita in corso.
+Il gioco è pienamente funzionante: economia, bancarotta, ruoli segreti, eventi, modalità contro IA con euristiche adattive (bersagli strategici, memoria delle informazioni scoperte, priorità di gioco in base allo stato), log delle azioni, identità visiva "dossier esecutivo", un **Sabotaggio** segreto ed esclusivo del Saboteur, **salvataggio automatico** della partita e **audio sintetizzato** (nessuna dipendenza esterna).
 
-**Prossimi passi** (vedi la cronologia dei commit per i dettagli via via implementati):
-- Audio (dadi, acquisti, vittoria).
+La roadmap dei prossimi miglioramenti è aperta: idee e feedback sono benvenuti.

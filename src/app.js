@@ -24,6 +24,109 @@ function getDistrict(index) {
     return DISTRICTS.find(d => index >= d.range[0] && index <= d.range[1]);
 }
 
+/* --- Sound --- */
+/**
+ * NUOVO: motore audio minimale basato su Web Audio API. Tutti gli effetti sono sintetizzati
+ * (nessun file esterno da scaricare/licenziare), così il progetto resta a dipendenza zero.
+ * Il contesto audio viene creato/sbloccato al primo click utile (policy autoplay browser).
+ */
+class SoundEngine {
+    constructor() {
+        this.ctx = null;
+        this.muted = localStorage.getItem('imperium_muted') === '1';
+    }
+
+    unlock() {
+        if (!this.ctx) {
+            try {
+                this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            } catch (e) { /* Web Audio non disponibile, il gioco resta muto senza errori */ }
+        }
+        if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+    }
+
+    toggleMute() {
+        this.muted = !this.muted;
+        localStorage.setItem('imperium_muted', this.muted ? '1' : '0');
+        return this.muted;
+    }
+
+    /** Singolo tono con inviluppo semplice (attacco/rilascio), building block di tutti gli effetti. */
+    tone(freq, startOffset, duration, type = 'sine', peakGain = 0.15) {
+        if (this.muted || !this.ctx) return;
+        const t0 = this.ctx.currentTime + startOffset;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, t0);
+        gain.gain.setValueAtTime(0, t0);
+        gain.gain.linearRampToValueAtTime(peakGain, t0 + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.001, t0 + duration);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(t0);
+        osc.stop(t0 + duration + 0.02);
+    }
+
+    diceRoll() {
+        // Tre click rapidi in salita, come il rimbalzo di un dado.
+        this.tone(320, 0, 0.06, 'square', 0.06);
+        this.tone(380, 0.07, 0.06, 'square', 0.06);
+        this.tone(460, 0.14, 0.08, 'square', 0.07);
+    }
+
+    buy() {
+        // Accordo ascendente breve, positivo.
+        this.tone(523, 0, 0.15, 'triangle', 0.12);
+        this.tone(659, 0.05, 0.18, 'triangle', 0.12);
+    }
+
+    payRent() {
+        this.tone(300, 0, 0.18, 'sawtooth', 0.08);
+        this.tone(220, 0.08, 0.22, 'sawtooth', 0.08);
+    }
+
+    cardPlay() {
+        this.tone(700, 0, 0.09, 'sine', 0.1);
+        this.tone(900, 0.05, 0.09, 'sine', 0.08);
+    }
+
+    event() {
+        // Suono neutro, condiviso anche dal Sabotaggio: non deve "tradire" chi lo usa.
+        this.tone(500, 0, 0.12, 'sine', 0.09);
+        this.tone(400, 0.1, 0.16, 'sine', 0.08);
+    }
+
+    accuseSuccess() {
+        this.tone(523, 0, 0.12, 'triangle', 0.12);
+        this.tone(659, 0.1, 0.12, 'triangle', 0.12);
+        this.tone(784, 0.2, 0.22, 'triangle', 0.13);
+    }
+
+    accuseFail() {
+        this.tone(300, 0, 0.15, 'sawtooth', 0.1);
+        this.tone(220, 0.12, 0.28, 'sawtooth', 0.1);
+    }
+
+    bankrupt() {
+        this.tone(220, 0, 0.2, 'sawtooth', 0.09);
+        this.tone(160, 0.15, 0.35, 'sawtooth', 0.09);
+        this.tone(110, 0.32, 0.4, 'sawtooth', 0.08);
+    }
+
+    turnStart() {
+        this.tone(600, 0, 0.08, 'sine', 0.05);
+    }
+
+    gameOverWin() {
+        [523, 659, 784, 1046].forEach((f, i) => this.tone(f, i * 0.12, 0.3, 'triangle', 0.13));
+    }
+
+    gameOverLose() {
+        [400, 350, 300, 220].forEach((f, i) => this.tone(f, i * 0.15, 0.35, 'sawtooth', 0.1));
+    }
+}
+
 /* --- Board --- */
 class Board {
     constructor() {
@@ -531,6 +634,8 @@ class Game {
         this.ui = new UI(this);
         this.round = 1;
         this.isProcessingTurn = false; // true = "ho già tirato il dado in questo turno"
+        // NUOVO: motore audio (effetti sintetizzati, nessun file esterno).
+        this.sound = new SoundEngine();
         // NUOVO: modalità di gioco ("computer" = tu sei CEO 1, gli altri 3 sono IA;
         // "locale" = hotseat, tutti e 4 i CEO sono persone reali). Scelta a inizio partita.
         this.mode = null;
@@ -549,10 +654,19 @@ class Game {
         const rollBtn = document.getElementById('btn-roll');
         const endBtn = document.getElementById('btn-end-turn');
         const surrenderBtn = document.getElementById('btn-surrender');
+        const muteBtn = document.getElementById('btn-mute');
 
         if (rollBtn) rollBtn.onclick = () => this.handleRollDice();
         if (endBtn) endBtn.onclick = () => this.endTurn();
         if (surrenderBtn) surrenderBtn.onclick = () => this.handleSurrenderClick();
+        if (muteBtn) {
+            muteBtn.innerText = this.sound.muted ? '🔇' : '🔊';
+            muteBtn.onclick = () => {
+                this.sound.unlock();
+                const muted = this.sound.toggleMute();
+                muteBtn.innerText = muted ? '🔇' : '🔊';
+            };
+        }
 
         // NUOVO: se esiste una partita salvata valida, chiede se riprenderla prima di
         // avviarne una nuova da zero.
@@ -690,6 +804,7 @@ class Game {
     }
 
     setMode(mode) {
+        this.sound.unlock(); // primo gesto utile dell'utente: sblocca l'audio (policy autoplay)
         this.mode = mode;
         this.ui.log(mode === 'computer'
             ? "Modalità: contro il Computer. Sei il CEO 1, gli altri sono IA."
@@ -732,6 +847,7 @@ class Game {
         if (accuseBtn) accuseBtn.disabled = !isHuman;
         this.ui.log(`Inizio turno.`, this.currentPlayer);
         this.autosave();
+        if (isHuman) this.sound.turnStart();
 
         if (!isHuman) {
             // NUOVO: turno dell'IA, gioca da sola dopo una pausa "di riflessione" più realistica
@@ -742,6 +858,8 @@ class Game {
 
     handleRollDice() {
         if (this.isProcessingTurn) return;
+        this.sound.unlock();
+        this.sound.diceRoll();
         this.isProcessingTurn = true;
         this.ui.toggleButton('btn-roll', false);
         this.ui.toggleButton('btn-surrender', false);
@@ -824,6 +942,7 @@ class Game {
         if (tile.type === 'corner' && tile.index !== 0) {
             const event = this.cards.drawEvent();
             event.apply(this.currentPlayer);
+            this.sound.event();
             this.ui.log(`Evento "${event.title}": ${event.desc}`, this.currentPlayer);
             this.showModalUnlessAI(`Evento: ${event.title}`, event.desc, [{ text: "OK", action: () => { } }]);
             this.checkWinConditions();
@@ -835,6 +954,7 @@ class Game {
     }
 
     buyProperty(tile) {
+        this.sound.buy();
         this.currentPlayer.credits -= tile.cost;
         tile.owner = this.currentPlayer.id;
         const districtNote = tile.district ? ` (${DISTRICTS.find(d => d.id === tile.district).name})` : '';
@@ -872,6 +992,7 @@ class Game {
             owner.credits += this.currentPlayer.credits; // paga quello che ha
             this.currentPlayer.credits = 0;
             this.currentPlayer.isBankrupt = true;
+            this.sound.bankrupt();
             this.ui.log(`È FALLITO ed eliminato dalla partita.`, this.currentPlayer);
             // NUOVO: un giocatore fallito non illumina più le caselle.
             this.ui.refreshTileGlow(tile.index);
@@ -883,6 +1004,7 @@ class Game {
         } else {
             this.currentPlayer.credits -= rent;
             owner.credits += rent;
+            this.sound.payRent();
             this.ui.log(`Paga ${rent} di affitto a ${owner.name}${rentNote}.`, this.currentPlayer);
         }
 
@@ -925,6 +1047,8 @@ class Game {
         this.currentPlayer.sabotagePoints += 20;
         this.currentPlayer.sabotageCooldown = 3;
 
+        // Suono neutro (lo stesso degli eventi casuali): non deve rivelare l'autore.
+        this.sound.event();
         // Log volutamente anonimo (nessun player passato): non deve rivelare l'autore.
         this.ui.log(`Contraccolpo di mercato imprevisto: ${target.name} perde ${amount} crediti.`);
 
@@ -1013,6 +1137,7 @@ class Game {
     }
 
     executeCardEffect(card, index) {
+        this.sound.cardPlay();
         this.currentPlayer.hand.splice(index, 1);
         // FIX: il costo della carta viene ora davvero scalato a chi la gioca.
         this.currentPlayer.credits -= card.cost;
@@ -1098,6 +1223,15 @@ class Game {
         return this.players.find(p => p.isSaboteur);
     }
 
+    /** NUOVO: suono di fine partita, diverso se l'utente ha vinto o perso (in modalità Computer). */
+    playGameOverSound(winnerId) {
+        if (this.mode === 'computer' && winnerId !== this.humanPlayerId) {
+            this.sound.gameOverLose();
+        } else {
+            this.sound.gameOverWin();
+        }
+    }
+
     /**
      * NUOVO: individua l'avversario "leader" (punteggio composito potere+crediti) tra i
      * bersagli validi — usato per rendere attacchi e sabotaggi strategici invece che casuali.
@@ -1143,11 +1277,13 @@ class Game {
 
     processAccusation(target) {
         if (target.isSaboteur) {
+            this.sound.accuseSuccess();
             this.ui.log(`Accusa ${target.name}: ESATTO, era il Saboteur! +20 Potere.`, this.currentPlayer);
             this.showModalUnlessAI("SUCCESS", `${target.name} was the Saboteur! You gain Power.`, [{ text: "OK", action: () => { } }]);
             target.credits = Math.floor(target.credits / 2);
             this.currentPlayer.power += 20;
         } else {
+            this.sound.accuseFail();
             this.ui.log(`Accusa ${target.name}: SBAGLIATO, era innocente.`, this.currentPlayer);
             this.showModalUnlessAI("FAILED", `${target.name} is Innocent! You lose resources.`, [{ text: "OK", action: () => { } }]);
             this.currentPlayer.credits = Math.floor(this.currentPlayer.credits / 2);
@@ -1165,6 +1301,7 @@ class Game {
         if (winner) {
             this.gameOver = true;
             this.clearSave();
+            this.playGameOverSound(winner.id);
             this.ui.showModal("GAME OVER", `${winner.name} wins by Power!`, [{ text: "Reload", action: () => location.reload() }]);
             return;
         }
@@ -1175,6 +1312,7 @@ class Game {
         if (saboteur && !saboteur.isBankrupt && !saboteur.isRetired && saboteur.sabotagePoints >= 50) {
             this.gameOver = true;
             this.clearSave();
+            this.playGameOverSound(saboteur.id);
             this.ui.showModal("GAME OVER", `${saboteur.name} era il Saboteur e ha sabotato con successo l'azienda!`, [{ text: "Reload", action: () => location.reload() }]);
             return;
         }
@@ -1185,6 +1323,7 @@ class Game {
         if (active.length === 1) {
             this.gameOver = true;
             this.clearSave();
+            this.playGameOverSound(active[0].id);
             this.ui.showModal("GAME OVER", `${active[0].name} is the last CEO standing!`, [{ text: "Reload", action: () => location.reload() }]);
         }
     }
