@@ -34,6 +34,13 @@ class SoundEngine {
     constructor() {
         this.ctx = null;
         this.muted = localStorage.getItem('imperium_muted') === '1';
+        // NUOVO: volume regolabile (0-1), persistito e applicato a ogni tono generato.
+        this.volume = parseFloat(localStorage.getItem('imperium_volume') ?? '0.7');
+    }
+
+    setVolume(v) {
+        this.volume = Math.max(0, Math.min(1, v));
+        localStorage.setItem('imperium_volume', String(this.volume));
     }
 
     unlock() {
@@ -60,7 +67,7 @@ class SoundEngine {
         osc.type = type;
         osc.frequency.setValueAtTime(freq, t0);
         gain.gain.setValueAtTime(0, t0);
-        gain.gain.linearRampToValueAtTime(peakGain, t0 + 0.015);
+        gain.gain.linearRampToValueAtTime(peakGain * this.volume, t0 + 0.015);
         gain.gain.exponentialRampToValueAtTime(0.001, t0 + duration);
         osc.connect(gain);
         gain.connect(this.ctx.destination);
@@ -521,19 +528,25 @@ class UI {
         if (btn) btn.disabled = !state;
     }
 
-    showDiceResult(roll) {
-        this.log(`Tiro: ${roll}`, this.game.currentPlayer);
+    showDiceResult(finalRoll) {
+        this.log(`Tiro: ${finalRoll}`, this.game.currentPlayer);
+        // NUOVO: piccola animazione "slot machine" (numeri casuali che scorrono veloci prima
+        // di fermarsi sul risultato) invece di un numero statico che appare e sparisce.
         const el = document.createElement('div');
-        el.innerText = roll;
-        el.style.position = 'fixed';
-        el.style.top = '50%';
-        el.style.left = '50%';
-        el.style.transform = 'translate(-50%, -50%)';
-        el.style.fontSize = '5rem';
-        el.style.color = '#fff';
-        el.style.zIndex = '200';
+        el.className = 'dice-popup';
         document.body.appendChild(el);
-        setTimeout(() => el.remove(), 1000);
+
+        let ticks = 0;
+        const maxTicks = 8;
+        const tickInterval = setInterval(() => {
+            ticks++;
+            el.textContent = ticks < maxTicks ? (Math.floor(Math.random() * 6) + 1) : finalRoll;
+            if (ticks >= maxTicks) {
+                clearInterval(tickInterval);
+                el.classList.add('settled');
+                setTimeout(() => el.remove(), 450);
+            }
+        }, 55);
     }
 
     log(msg, player = null) {
@@ -634,6 +647,12 @@ class UI {
         }
     }
 
+    /** NUOVO: ripristina l'aspetto "libera" di una casella venduta alla banca. */
+    resetTileVisual(tile) {
+        const el = this.boardElement.querySelector(`.tile[data-index="${tile.index}"]`);
+        if (el) el.style.border = '';
+    }
+
     /**
      * Illumina la casella `tileIndex` con il colore di ogni CEO attualmente presente
      * (1 giocatore = 1 colore, 2 giocatori = 2 colori, ecc.), ricalcolando in base
@@ -692,6 +711,10 @@ class Game {
         // NUOVO: evita di far ripartire il giro turni dopo che la partita è già finita
         // (es. un ritiro può concludere la partita).
         this.gameOver = false;
+        // NUOVO: moltiplicatore di velocità IA regolabile dalle impostazioni (0.4=veloce, 1=normale, 2=lenta).
+        this.aiSpeedMultiplier = parseFloat(localStorage.getItem('imperium_ai_speed') ?? '1');
+        // NUOVO: stato dell'asta in corso (null quando nessuna asta è attiva).
+        this.auction = null;
         this.init();
     }
 
@@ -705,6 +728,7 @@ class Game {
         const surrenderBtn = document.getElementById('btn-surrender');
         const muteBtn = document.getElementById('btn-mute');
         const helpBtn = document.getElementById('btn-help');
+        const settingsBtn = document.getElementById('btn-settings');
 
         if (rollBtn) rollBtn.onclick = () => this.handleRollDice();
         if (endBtn) endBtn.onclick = () => this.endTurn();
@@ -718,6 +742,7 @@ class Game {
             };
         }
         if (helpBtn) helpBtn.onclick = () => this.showRulesModal();
+        if (settingsBtn) settingsBtn.onclick = () => this.showSettingsModal();
 
         // NUOVO: se esiste una partita salvata valida, chiede se riprenderla prima di
         // avviarne una nuova da zero.
@@ -904,8 +929,9 @@ class Game {
 
         if (!isHuman) {
             // NUOVO: turno dell'IA, gioca da sola dopo una pausa "di riflessione" più realistica
-            // (2.2-4 secondi, invece di quasi istantanea) prima di tirare il dado.
-            setTimeout(() => this.handleRollDice(), aiThinkDelay(2200, 4000));
+            // (2.2-4 secondi, invece di quasi istantanea) prima di tirare il dado. Il moltiplicatore
+            // di velocità (impostazioni) accelera o rallenta questa pausa.
+            setTimeout(() => this.handleRollDice(), aiThinkDelay(2200, 4000) * this.aiSpeedMultiplier);
         }
     }
 
@@ -961,28 +987,32 @@ class Game {
             }
 
             if (tile.owner === null) {
-                if (this.currentPlayer.credits >= tile.cost) {
-                    if (this.isAITurn()) {
-                        // NUOVO: l'IA valuta anche se l'acquisto completa un monopolio di distretto
-                        // (in quel caso è disposta a spendere di più, tenendo meno riserva).
-                        const completesDistrict = tile.district && this.board.tiles
-                            .filter(t => t.type === 'property' && t.district === tile.district && t.index !== tile.index)
-                            .every(t => t.owner === this.currentPlayer.id);
-                        const reserveNeeded = completesDistrict ? 50 : 150;
-                        if (this.currentPlayer.credits - tile.cost >= reserveNeeded) {
-                            this.buyProperty(tile);
-                        } else {
-                            this.ui.log(`Decide di non comprare ${tile.name}.`, this.currentPlayer);
-                            this.finishActionPhase();
-                        }
-                        return;
+                if (this.isAITurn()) {
+                    // NUOVO: l'IA valuta anche se l'acquisto completa un monopolio di distretto
+                    // (in quel caso è disposta a spendere di più, tenendo meno riserva).
+                    const completesDistrict = tile.district && this.board.tiles
+                        .filter(t => t.type === 'property' && t.district === tile.district && t.index !== tile.index)
+                        .every(t => t.owner === this.currentPlayer.id);
+                    const reserveNeeded = completesDistrict ? 50 : 150;
+                    if (this.currentPlayer.credits >= tile.cost && this.currentPlayer.credits - tile.cost >= reserveNeeded) {
+                        this.buyProperty(tile);
+                    } else {
+                        this.ui.log(`Decide di non comprare ${tile.name}.`, this.currentPlayer);
+                        // NUOVO: se nessuno compra, parte un'asta tra tutti i giocatori attivi.
+                        this.startAuction(tile);
                     }
-                    this.ui.showModal("Acquisition", `Buy ${tile.name} for ${tile.cost}?`, [
-                        { text: "Buy", action: () => this.buyProperty(tile) },
-                        { text: "Pass", action: () => this.finishActionPhase() }
-                    ]);
                     return;
                 }
+                if (this.currentPlayer.credits >= tile.cost) {
+                    this.ui.showModal("Acquisition", `Buy ${tile.name} for ${tile.cost}?`, [
+                        { text: "Buy", action: () => this.buyProperty(tile) },
+                        { text: "Pass", action: () => this.startAuction(tile) }
+                    ]);
+                } else {
+                    this.ui.log(`Non può permettersi ${tile.name}: parte un'asta.`, this.currentPlayer);
+                    this.startAuction(tile);
+                }
+                return;
             } else if (tile.owner !== this.currentPlayer.id) {
                 this.payRent(tile);
                 return;
@@ -1016,6 +1046,103 @@ class Game {
         this.finishActionPhase();
     }
 
+    /**
+     * NUOVO: asta tra tutti i CEO attivi quando nessuno compra (o non può permettersi) una
+     * casella libera — prima non succedeva nulla. Rilancio a incrementi fissi, round-robin,
+     * finché resta un solo offerente o tutti si ritirano.
+     */
+    startAuction(tile) {
+        const participants = this.players.filter(p => !p.isBankrupt && !p.isRetired);
+        if (participants.length === 0) { this.finishActionPhase(); return; }
+        this.auction = {
+            tile,
+            highestBid: 0,
+            highestBidder: null,
+            increment: Math.max(10, Math.round(tile.cost * 0.05)),
+            active: participants.map(p => p.id),
+            turnIndex: 0
+        };
+        this.ui.log(`Nessuno compra ${tile.name}: parte un'asta tra tutti i CEO.`);
+        this.runAuctionStep();
+    }
+
+    runAuctionStep() {
+        const a = this.auction;
+        if (!a) return;
+        if (a.active.length <= 1) {
+            this.concludeAuction();
+            return;
+        }
+        const bidderId = a.active[a.turnIndex % a.active.length];
+        const bidder = this.players.find(p => p.id === bidderId);
+        const isHumanBidder = !(this.mode === 'computer' && bidder.id !== this.humanPlayerId);
+        const nextBid = a.highestBid + a.increment;
+
+        // Se non può permettersi nemmeno il rilancio minimo, si ritira automaticamente.
+        if (bidder.credits < nextBid) {
+            this.auctionWithdraw(bidder);
+            return;
+        }
+
+        if (isHumanBidder) {
+            const currentInfo = a.highestBidder ? `Offerta più alta: ${a.highestBid} (${a.highestBidder.name}).` : 'Nessuna offerta ancora.';
+            this.ui.showModal(
+                `Asta: ${a.tile.name}`,
+                `${currentInfo} Vuoi offrire ${nextBid}?`,
+                [
+                    { text: `Offri ${nextBid}`, action: () => this.auctionBid(bidder, nextBid) },
+                    { text: "Ritirati", action: () => this.auctionWithdraw(bidder) }
+                ]
+            );
+        } else {
+            setTimeout(() => {
+                // Euristica IA: disposta a offrire fino a una quota casuale del valore della casella.
+                const maxWilling = Math.min(bidder.credits - 20, Math.round(a.tile.cost * (0.55 + Math.random() * 0.35)));
+                if (nextBid <= maxWilling && bidder.credits >= nextBid) {
+                    this.auctionBid(bidder, nextBid);
+                } else {
+                    this.auctionWithdraw(bidder);
+                }
+            }, aiThinkDelay(600, 1400) * this.aiSpeedMultiplier);
+        }
+    }
+
+    auctionBid(bidder, amount) {
+        const a = this.auction;
+        if (!a) return;
+        a.highestBid = amount;
+        a.highestBidder = bidder;
+        this.sound.cardPlay();
+        this.ui.log(`Offre ${amount} per ${a.tile.name} (asta).`, bidder);
+        a.turnIndex++;
+        this.runAuctionStep();
+    }
+
+    auctionWithdraw(bidder) {
+        const a = this.auction;
+        if (!a) return;
+        this.ui.log(`Si ritira dall'asta per ${a.tile.name}.`, bidder);
+        a.active = a.active.filter(id => id !== bidder.id);
+        this.runAuctionStep();
+    }
+
+    concludeAuction() {
+        const a = this.auction;
+        if (!a) return;
+        if (a.highestBidder) {
+            const winner = a.highestBidder;
+            winner.credits -= a.highestBid;
+            a.tile.owner = winner.id;
+            this.sound.buy();
+            this.ui.log(`Vince l'asta per ${a.tile.name} a ${a.highestBid}.`, winner);
+            this.ui.updateTileVisual(a.tile, winner.color);
+        } else {
+            this.ui.log(`Nessuna offerta per ${a.tile.name}: resta libera.`);
+        }
+        this.auction = null;
+        this.finishActionPhase();
+    }
+
     payRent(tile) {
         const owner = this.players[tile.owner];
         let rent = Math.floor(tile.cost * 0.1);
@@ -1039,28 +1166,111 @@ class Game {
             }
         }
 
-        // FIX: gestione reale della bancarotta (prima i crediti potevano andare negativi
-        // senza alcuna conseguenza per il giocatore).
         if (this.currentPlayer.credits < rent) {
-            owner.credits += this.currentPlayer.credits; // paga quello che ha
-            this.currentPlayer.credits = 0;
-            this.currentPlayer.isBankrupt = true;
-            this.sound.bankrupt();
-            this.ui.log(`È FALLITO ed eliminato dalla partita.`, this.currentPlayer);
-            // NUOVO: un giocatore fallito non illumina più le caselle.
-            this.ui.refreshTileGlow(tile.index);
-            // NUOVO: il fallimento di un CEO avvantaggia il Saboteur (a meno che non sia lui stesso).
-            const saboteur = this.getSaboteur();
-            if (saboteur && !this.currentPlayer.isSaboteur) {
-                saboteur.sabotagePoints += 25;
-            }
+            // NUOVO: prima di dichiarare bancarotta, si può vendere proprietà alla banca per
+            // coprire la differenza (prima l'unica via era il fallimento secco).
+            this.resolveShortfall(tile, owner, rent, rentNote);
         } else {
             this.currentPlayer.credits -= rent;
             owner.credits += rent;
             this.sound.payRent();
             this.ui.log(`Paga ${rent} di affitto a ${owner.name}${rentNote}.`, this.currentPlayer);
+            this.checkWinConditions();
+            this.finishActionPhase();
+        }
+    }
+
+    /** NUOVO: gestisce la carenza di fondi per pagare un affitto: vendere proprietà o fallire. */
+    resolveShortfall(tile, owner, rent, rentNote) {
+        const player = this.currentPlayer;
+        const owned = this.board.tiles.filter(t => t.owner === player.id);
+
+        if (owned.length === 0) {
+            this.declareBankruptcy(player, owner, tile);
+            return;
         }
 
+        if (this.isAITurn()) {
+            this.aiLiquidateAndPay(player, owner, tile, rent, rentNote);
+            return;
+        }
+
+        const actions = owned.map(t => {
+            const value = Math.floor(t.cost * 0.5);
+            return {
+                text: `Vendi ${t.name} (+${value})`,
+                action: () => this.sellPropertyForCash(player, t, () => this.retryPayAfterSale(tile, owner, rent, rentNote))
+            };
+        });
+        actions.push({ text: "Dichiara Bancarotta", action: () => this.declareBankruptcy(player, owner, tile) });
+
+        this.ui.showModal(
+            "Fondi insufficienti",
+            `Ti servono ${rent} crediti per pagare l'affitto a ${owner.name} ma ne hai solo ${player.credits}. Vendi una proprietà alla banca (metà del suo costo) per coprire la differenza, oppure dichiara bancarotta.`,
+            actions
+        );
+    }
+
+    sellPropertyForCash(player, tile, callback) {
+        const value = Math.floor(tile.cost * 0.5);
+        tile.owner = null;
+        player.credits += value;
+        this.ui.resetTileVisual(tile);
+        this.ui.log(`Vende ${tile.name} alla banca per ${value} crediti.`, player);
+        this.ui.updateHUD(this.currentPlayer, this.players);
+        callback();
+    }
+
+    retryPayAfterSale(tile, owner, rent, rentNote) {
+        const player = this.currentPlayer;
+        if (player.credits >= rent) {
+            player.credits -= rent;
+            owner.credits += rent;
+            this.sound.payRent();
+            this.ui.log(`Paga ${rent} di affitto a ${owner.name}${rentNote} dopo aver liquidato beni.`, player);
+            this.checkWinConditions();
+            this.finishActionPhase();
+        } else {
+            // Ancora non basta: richiede se vendere altro o arrendersi alla bancarotta.
+            this.resolveShortfall(tile, owner, rent, rentNote);
+        }
+    }
+
+    /** NUOVO: liquidazione automatica per l'IA (vende prima le proprietà meno costose). */
+    aiLiquidateAndPay(player, owner, tile, rent, rentNote) {
+        const owned = [...this.board.tiles].filter(t => t.owner === player.id).sort((a, b) => a.cost - b.cost);
+        let idx = 0;
+        const sellNext = () => {
+            if (player.credits >= rent) {
+                player.credits -= rent;
+                owner.credits += rent;
+                this.sound.payRent();
+                this.ui.log(`Paga ${rent} di affitto a ${owner.name}${rentNote} dopo aver liquidato beni.`, player);
+                this.checkWinConditions();
+                this.finishActionPhase();
+                return;
+            }
+            if (idx >= owned.length) {
+                this.declareBankruptcy(player, owner, tile);
+                return;
+            }
+            const t = owned[idx++];
+            this.sellPropertyForCash(player, t, sellNext);
+        };
+        sellNext();
+    }
+
+    declareBankruptcy(player, owner, tile) {
+        owner.credits += player.credits;
+        player.credits = 0;
+        player.isBankrupt = true;
+        this.sound.bankrupt();
+        this.ui.log(`È FALLITO ed eliminato dalla partita.`, player);
+        this.ui.refreshTileGlow(tile.index);
+        const saboteur = this.getSaboteur();
+        if (saboteur && !player.isSaboteur) {
+            saboteur.sabotagePoints += 25;
+        }
         this.checkWinConditions();
         this.finishActionPhase();
     }
@@ -1079,8 +1289,8 @@ class Game {
                 this.aiMaybeSabotage();
                 this.aiMaybePlayCard();
                 this.aiMaybeAccuse();
-                setTimeout(() => this.endTurn(), aiThinkDelay(1800, 3200));
-            }, aiThinkDelay(1500, 2800));
+                setTimeout(() => this.endTurn(), aiThinkDelay(1800, 3200) * this.aiSpeedMultiplier);
+            }, aiThinkDelay(1500, 2800) * this.aiSpeedMultiplier);
         }
     }
 
@@ -1290,6 +1500,41 @@ class Game {
             </div>
         `;
         this.ui.showModal("Come si gioca", html, [{ text: "Ho capito", action: () => { } }], true);
+    }
+
+    /** NUOVO: pannello impostazioni — volume audio e velocità dei turni IA, entrambi persistiti. */
+    showSettingsModal() {
+        const currentVolume = Math.round(this.sound.volume * 100);
+        const currentSpeed = this.aiSpeedMultiplier;
+        const speedOption = (value, label) => `<option value="${value}" ${currentSpeed === value ? 'selected' : ''}>${label}</option>`;
+        const html = `
+            <div style="text-align:left;">
+                <label style="display:block; margin-bottom:6px; font-family:var(--font-mono); font-size:0.75rem; color:var(--color-text-muted);">
+                    Volume: <span id="settings-volume-val">${currentVolume}</span>%
+                </label>
+                <input type="range" min="0" max="100" value="${currentVolume}" id="settings-volume"
+                    style="width:100%; margin-bottom:18px;"
+                    oninput="document.getElementById('settings-volume-val').textContent=this.value; window.game.sound.setVolume(this.value/100);">
+
+                <label style="display:block; margin-bottom:6px; font-family:var(--font-mono); font-size:0.75rem; color:var(--color-text-muted);">
+                    Velocità turni IA
+                </label>
+                <select id="settings-ai-speed"
+                    style="width:100%; padding:8px; background:#1A1D27; color:var(--color-text); border:1px solid var(--color-border); font-family:var(--font-body); border-radius:4px;"
+                    onchange="window.game.setAISpeed(parseFloat(this.value));">
+                    ${speedOption(0.4, 'Veloce')}
+                    ${speedOption(1, 'Normale')}
+                    ${speedOption(2, 'Lenta')}
+                </select>
+            </div>
+        `;
+        this.ui.showModal("Impostazioni", html, [{ text: "Chiudi", action: () => { } }], true);
+    }
+
+    /** NUOVO: aggiorna e persiste il moltiplicatore di velocità dei turni IA. */
+    setAISpeed(multiplier) {
+        this.aiSpeedMultiplier = multiplier;
+        localStorage.setItem('imperium_ai_speed', String(multiplier));
     }
 
     /** NUOVO: riepilogo di fine partita con le statistiche di tutti i giocatori, ruoli rivelati. */

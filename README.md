@@ -19,11 +19,13 @@ Apri `index.html` e scegli la modalità:
 
 **Il giro base:**
 1. Tira il dado e il tuo CEO cammina lungo il tabellone (40 caselle).
-2. Atterri su un **Settore** o un **Hub di Trasporto** libero? Puoi acquisirlo. È già di un rivale? Paghi l'affitto — e lui si arricchisce sulle tue spalle.
+2. Atterri su un **Settore** o un **Hub di Trasporto** libero? Puoi acquisirlo. È già di un rivale? Paghi l'affitto — e lui si arricchisce sulle tue spalle. Se nessuno lo compra (o non te lo puoi permettere), parte un'**asta** tra tutti i CEO attivi.
 3. Atterri su una casella d'angolo (**AUDIT**, **BLACK MARKET**, **RAID**)? Il mercato ha un imprevisto per te: un evento casuale che può premiarti o punirti.
 4. Hai una carta in mano? Giocala per rubare risorse, congelare un avversario o proteggerti con lo scudo legale.
 5. In qualsiasi momento del tuo turno puoi **ACCUSARE** un rivale di essere il Saboteur. Indovina e guadagni potere. Sbagli e paghi il prezzo dell'umiliazione pubblica.
 6. Passa il turno da un consiglio all'altro, finché qualcuno non solleva il trofeo — o affonda l'azienda di tutti nel tentativo.
+
+**Fondi insufficienti?** Prima di fallire puoi vendere una proprietà alla banca (metà del suo costo) per coprire la differenza. Solo se non hai più nulla da vendere scatta la bancarotta.
 
 **Chi vince?**
 - Un **CEO** vince raggiungendo **50 Potere**, oppure restando l'ultimo non fallito sul mercato.
@@ -33,7 +35,7 @@ Puoi sempre ritirarti da una partita ormai persa: la tua pedina resta sul tabell
 
 La partita si **salva automaticamente** ad ogni azione (in locale, nel browser): se ricarichi la pagina o la chiudi per errore, al rientro ti verrà chiesto se riprenderla da dove l'avevi lasciata o iniziarne una nuova.
 
-L'**audio** (dadi, acquisti, affitti, carte, accuse, eventi, vittoria/sconfitta) è sintetizzato interamente via Web Audio API: nessun file da scaricare, il progetto resta a dipendenza zero. Si può disattivare in ogni momento dal pulsante 🔊 in alto a destra (preferenza salvata).
+L'**audio** (dadi, acquisti, affitti, carte, accuse, eventi, vittoria/sconfitta) è sintetizzato interamente via Web Audio API: nessun file da scaricare, il progetto resta a dipendenza zero. Dal pannello impostazioni (⚙ in alto a destra) puoi regolare **volume** e **velocità dei turni IA** (veloce/normale/lenta); il pulsante 🔊 accanto disattiva l'audio del tutto. Entrambe le preferenze restano salvate.
 
 ---
 
@@ -86,6 +88,6 @@ assets/                 vuota, nessuna risorsa esterna necessaria
 
 ## 🛠️ Stato attuale
 
-Il gioco è pienamente funzionante: economia, bancarotta, ruoli segreti, eventi, modalità contro IA con euristiche adattive (bersagli strategici, memoria delle informazioni scoperte, priorità di gioco in base allo stato), log delle azioni, identità visiva "dossier esecutivo", un **Sabotaggio** segreto ed esclusivo del Saboteur, **salvataggio automatico** della partita e **audio sintetizzato** (nessuna dipendenza esterna).
+Il gioco è pienamente funzionante: economia con **aste** e **vendita proprietà** (niente più bancarotta secca come unica via), bancarotta, ruoli segreti, eventi, modalità contro IA con euristiche adattive, log delle azioni filtrabile per giocatore, identità visiva "dossier esecutivo", un **Sabotaggio** segreto ed esclusivo del Saboteur, salvataggio automatico, audio sintetizzato con **pannello impostazioni** (volume, velocità IA), e un dado animato in stile slot-machine.
 
 La roadmap dei prossimi miglioramenti è aperta: idee e feedback sono benvenuti.
